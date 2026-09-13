@@ -1,7 +1,7 @@
 x-backend-service: &backend-service
   build:
     context: ./dashboard-backend
-  image: ${BACKEND_IMAGE:-samwelmagaiwa/mlg-dashboard-backend}:${IMAGE_TAG:-latest}
+  image: ${BACKEND_IMAGE:-developerml/mlg-dashboard-backend}:${IMAGE_TAG:-latest}
   restart: unless-stopped
   env_file:
     - ${BACKEND_ENV_FILE:-./env/backend.production.env}
@@ -70,7 +70,7 @@ services:
       context: ./dashboard-frontend
       args:
         VITE_API_BASE_URL: ${VITE_API_BASE_URL:-/api/v1}
-    image: ${FRONTEND_IMAGE:-samwelmagaiwa/mlg-dashboard-frontend}:${IMAGE_TAG:-latest}
+    image: ${FRONTEND_IMAGE:-developerml/mlg-dashboard-frontend}:${IMAGE_TAG:-latest}
     restart: unless-stopped
     depends_on:
       - dashboard_backend

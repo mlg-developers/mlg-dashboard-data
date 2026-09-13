@@ -35,8 +35,8 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
           tags: |
-            samwelmagaiwa/mlg-dashboard-backend:latest
-            samwelmagaiwa/mlg-dashboard-backend:${{ github.sha }}
+            developerml/mlg-dashboard-backend:latest
+            developerml/mlg-dashboard-backend:${{ github.sha }}
 
       - name: Build and push frontend image
         uses: docker/build-push-action@v5
@@ -48,5 +48,5 @@ jobs:
           build-args: |
             VITE_API_BASE_URL=/api/v1
           tags: |
-            samwelmagaiwa/mlg-dashboard-frontend:latest
-            samwelmagaiwa/mlg-dashboard-frontend:${{ github.sha }}
+            developerml/mlg-dashboard-frontend:latest
+            developerml/mlg-dashboard-frontend:${{ github.sha }}
