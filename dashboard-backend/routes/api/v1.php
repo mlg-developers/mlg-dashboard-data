@@ -30,6 +30,7 @@ Route::prefix('dashboard')->controller(DashboardController::class)->group(functi
     Route::get('/referral-stats', 'getReferralStats');
     Route::get('/gender-radar', 'getGenderRadarStats');
     Route::get('/pending-patients', 'getPendingPatients');
+    Route::get('/total-opd', 'getTotalOpd');
     Route::get('/duplicated-data', 'getDuplicateVisits');
     Route::get('/top-diseases', 'getTopDiseases');
 });

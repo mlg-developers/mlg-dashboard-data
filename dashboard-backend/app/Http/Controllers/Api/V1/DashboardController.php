@@ -1444,4 +1444,17 @@ class DashboardController extends Controller
             return array_values($data->toArray());
         });
     }
+
+    public function getTotalOpd(Request $request)
+    {
+        $date = $request->query('date', now()->toDateString());
+
+        $total = DailyDashboardStat::where('stat_date', $date)
+            ->sum('total_visits');
+
+        return response()->json([
+            'date'      => $date,
+            'total_opd' => (int) $total,
+        ]);
+    }
 }
