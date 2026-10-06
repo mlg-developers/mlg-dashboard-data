@@ -157,7 +157,7 @@ async function sendSms() {
 
       campaigns.value.push({
         id:        resp.campaign_id,
-        label:     group.label,
+        label:     title,
         total:     resp.total,
         delivered: 0,
         failed:    0,
