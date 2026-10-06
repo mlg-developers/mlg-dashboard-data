@@ -397,7 +397,7 @@ onUnmounted(stopPolling)
             <label class="lbl">Campaign Title <span class="req">*</span></label>
             <div class="inp-row">
               <input v-model="campaignTitle" class="inp inp-flex" :class="{ 'inp-active': includeTitleInSms }" placeholder="e.g. Happy Week — Customer Care 2026" maxlength="255" />
-              <label class="toggle-wrap inp-toggle" :title="includeTitleInSms ? 'Title included in SMS' : 'Title not in SMS'">
+              <label class="toggle-wrap inp-toggle-inside" :title="includeTitleInSms ? 'Title included in SMS' : 'Title not in SMS'">
                 <input type="checkbox" v-model="includeTitleInSms" />
                 <span class="toggle"></span>
               </label>
@@ -762,9 +762,9 @@ onUnmounted(stopPolling)
   box-shadow: 0 1px 4px rgba(0,0,0,.2);
 }
 .power-toggle.on .power-knob { left: 23px; }
-.inp-row    { display: flex; align-items: center; gap: 0.5rem; }
-.inp-flex   { flex: 1; }
-.inp-toggle { flex-shrink: 0; }
+.inp-row           { position: relative; display: flex; align-items: center; }
+.inp-flex          { flex: 1; padding-right: 3rem; }
+.inp-toggle-inside { position: absolute; right: 0.65rem; top: 50%; transform: translateY(-50%); flex-shrink: 0; }
 .lbl  { display: block; font-size: 0.78rem; font-weight: 600; color: #344767; margin-bottom: 0.3rem; }
 .req  { color: #dc2626; }
 .inp  { width: 100%; padding: 0.55rem 0.8rem; border: 1.5px solid #e2e8f0; border-radius: 8px; font-size: 0.86rem; color: #1a2533; transition: border-color .2s; box-sizing: border-box; }
