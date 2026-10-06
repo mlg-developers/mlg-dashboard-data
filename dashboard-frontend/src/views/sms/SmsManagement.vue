@@ -396,7 +396,7 @@ onUnmounted(stopPolling)
           <div class="card-body">
             <label class="lbl">Campaign Title <span class="req">*</span></label>
             <div class="inp-row">
-              <input v-model="campaignTitle" class="inp inp-flex" :class="{ 'inp-active': includeTitleInSms }" placeholder="e.g. Happy Week — Customer Care 2026" maxlength="255" />
+              <input v-model="campaignTitle" class="inp inp-flex" :class="{ 'inp-active': includeTitleInSms, 'inp-muted': !includeTitleInSms }" :readonly="!includeTitleInSms" placeholder="e.g. Happy Week — Customer Care 2026" maxlength="255" />
               <label class="toggle-wrap inp-toggle-inside" :title="includeTitleInSms ? 'Title included in SMS' : 'Title not in SMS'">
                 <input type="checkbox" v-model="includeTitleInSms" />
                 <span class="toggle"></span>
@@ -762,6 +762,7 @@ onUnmounted(stopPolling)
   box-shadow: 0 1px 4px rgba(0,0,0,.2);
 }
 .power-toggle.on .power-knob { left: 23px; }
+.inp-muted  { background: #f4f6f9 !important; color: #adb5bd !important; cursor: not-allowed; border-color: #e9ecef !important; }
 .inp-row           { position: relative; display: flex; align-items: center; }
 .inp-flex          { flex: 1; padding-right: 3rem; }
 .inp-toggle-inside { position: absolute; right: 0.65rem; top: 50%; transform: translateY(-50%); flex-shrink: 0; }
