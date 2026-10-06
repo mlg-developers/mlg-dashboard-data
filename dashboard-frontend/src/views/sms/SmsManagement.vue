@@ -224,13 +224,40 @@ const totalPending   = computed(() => campaigns.value.reduce((s, c) => s + (c.pe
 const totalSent      = computed(() => campaigns.value.reduce((s, c) => s + (c.total || 0), 0))
 
 // ── History ───────────────────────────────────────────────────────────────────
-const historyList    = ref([])
-const loadingHistory = ref(false)
+const historyList     = ref([])
+const loadingHistory  = ref(false)
+const expandedRow     = ref(null)   // campaign id currently expanded
+const expandedLogs    = ref([])
+const loadingLogs     = ref(false)
 
 async function loadHistory() {
   loadingHistory.value = true
-  try { historyList.value = ((await smsRequest('GET', '/sms/campaigns'))?.data) ?? [] } catch (_) {}
+  try {
+    const res = await smsRequest('GET', '/sms/campaigns')
+    historyList.value = res?.data ?? []
+    // Pull live delivery status for completed campaigns with a shoot_id
+    for (const c of historyList.value) {
+      if (c.shoot_id && c.delivered_count === 0 && c.status === 'completed') {
+        smsRequest('GET', `/sms/campaigns/${c.id}/status`).then(sr => {
+          c.delivered_count = sr.delivered ?? c.delivered_count
+          c.failed_count    = sr.failed    ?? c.failed_count
+        }).catch(() => {})
+      }
+    }
+  } catch (_) {}
   finally { loadingHistory.value = false }
+}
+
+async function toggleExpand(c) {
+  if (expandedRow.value === c.id) { expandedRow.value = null; expandedLogs.value = []; return }
+  expandedRow.value = c.id
+  expandedLogs.value = []
+  loadingLogs.value  = true
+  try {
+    const res = await smsRequest('GET', `/sms/campaigns/${c.id}/logs`)
+    expandedLogs.value = res?.logs?.data ?? []
+  } catch (_) {}
+  finally { loadingLogs.value = false }
 }
 
 function switchTab(tab) { activeTab.value = tab; if (tab === 'history') loadHistory() }
@@ -479,19 +506,53 @@ onUnmounted(stopPolling)
       <div class="card-head"><CIcon icon="cil-history" /><span>Campaign History</span></div>
       <div v-if="loadingHistory" class="empty"><span class="spinner-border text-primary"></span></div>
       <div v-else-if="!historyList.length" class="empty">No campaigns yet.</div>
-      <div v-else class="logs-wrap">
-        <table class="logs-table">
-          <thead><tr><th>#</th><th>Title</th><th>Total</th><th>Delivered</th><th>Failed</th><th>Status</th><th>Date</th></tr></thead>
-          <tbody>
-            <tr v-for="(c,i) in historyList" :key="c.id">
-              <td>{{ i+1 }}</td><td>{{ c.title }}</td><td>{{ c.total_recipients }}</td>
-              <td class="green bold">{{ c.delivered_count }}</td>
-              <td class="red bold">{{ c.failed_count }}</td>
-              <td><span :class="`log-badge ${c.status}`">{{ c.status }}</span></td>
-              <td class="muted small">{{ new Date(c.created_at).toLocaleString() }}</td>
-            </tr>
-          </tbody>
-        </table>
+      <div v-else>
+        <div v-for="(c,i) in historyList" :key="c.id" class="hist-item">
+
+          <!-- Summary row -->
+          <div class="hist-row" @click="toggleExpand(c)">
+            <span class="hist-num">{{ i+1 }}</span>
+            <div class="hist-main">
+              <div class="hist-title">{{ c.title }}</div>
+              <div class="hist-msg">{{ c.message }}</div>
+            </div>
+            <div class="hist-stats">
+              <div class="hstat"><span class="hstat-n">{{ c.total_recipients }}</span><span class="hstat-l">Total</span></div>
+              <div class="hstat delivered"><span class="hstat-n">{{ c.delivered_count }}</span><span class="hstat-l">Delivered</span></div>
+              <div class="hstat failed"><span class="hstat-n">{{ c.failed_count }}</span><span class="hstat-l">Failed</span></div>
+              <div class="hstat pending"><span class="hstat-n">{{ Math.max(0, c.total_recipients - c.delivered_count - c.failed_count) }}</span><span class="hstat-l">Pending</span></div>
+            </div>
+            <span :class="`log-badge ${c.status}`">{{ c.status }}</span>
+            <span class="muted small nowrap">{{ new Date(c.created_at).toLocaleString() }}</span>
+            <CIcon :icon="expandedRow===c.id ? 'cil-chevron-top' : 'cil-chevron-bottom'" class="hist-chev" />
+          </div>
+
+          <!-- Expanded: recipient phones + delivery status -->
+          <div v-if="expandedRow===c.id" class="hist-expand">
+            <div v-if="loadingLogs" class="empty"><span class="spinner-border spinner-border-sm text-primary"></span> Loading recipients…</div>
+            <div v-else-if="!expandedLogs.length" class="empty small">No recipient logs found.</div>
+            <div v-else>
+              <div class="expand-msg-box">
+                <span class="expand-msg-label">SMS Body:</span>
+                <span class="expand-msg-text">{{ c.message }}</span>
+              </div>
+              <table class="logs-table mt-xs">
+                <thead><tr><th>#</th><th>Name</th><th>Phone</th><th>Status</th><th>Sent At</th><th>Note</th></tr></thead>
+                <tbody>
+                  <tr v-for="(log,li) in expandedLogs" :key="log.id">
+                    <td>{{ li+1 }}</td>
+                    <td>{{ log.recipient_name||'—' }}</td>
+                    <td class="mono">{{ log.phone }}</td>
+                    <td><span :class="`log-badge ${log.status}`">{{ log.status }}</span></td>
+                    <td class="muted small">{{ log.sent_at ? new Date(log.sent_at).toLocaleString() : '—' }}</td>
+                    <td class="muted small">{{ log.error_message||'—' }}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+        </div>
       </div>
     </div>
 
@@ -736,6 +797,43 @@ onUnmounted(stopPolling)
 .log-badge.sent    { background: #dbeafe; color: #1e40af; }
 .log-badge.failed  { background: #fee2e2; color: #991b1b; }
 .log-badge.pending,.log-badge.sending { background: #fef3c7; color: #92400e; }
+
+/* ── History ─────────────────────────────────────────────────────────────── */
+.hist-item  { border-bottom: 1px solid #f0f0f0; }
+.hist-item:last-child { border-bottom: none; }
+
+.hist-row {
+  display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap;
+  padding: 0.75rem 1rem; cursor: pointer; transition: background .15s;
+}
+.hist-row:hover { background: #f8f9fa; }
+
+.hist-num  { font-size: 0.75rem; font-weight: 700; color: #6c757d; min-width: 18px; }
+.hist-main { flex: 1; min-width: 0; }
+.hist-title{ font-size: 0.82rem; font-weight: 700; color: #1a2533; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.hist-msg  { font-size: 0.73rem; color: #6c757d; margin-top: 0.1rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 320px; }
+.hist-chev { width: 14px; height: 14px; color: #6c757d; flex-shrink: 0; }
+
+.hist-stats { display: flex; gap: 0.5rem; }
+.hstat      { text-align: center; padding: 0.25rem 0.6rem; border-radius: 8px; background: #f4f6f9; min-width: 50px; }
+.hstat.delivered { background: #f0fff4; }
+.hstat.failed    { background: #fff5f5; }
+.hstat.pending   { background: #fffbeb; }
+.hstat-n    { display: block; font-size: 1rem; font-weight: 700; color: #1a2533; }
+.hstat.delivered .hstat-n { color: #22c55e; }
+.hstat.failed    .hstat-n { color: #ef4444; }
+.hstat.pending   .hstat-n { color: #f59e0b; }
+.hstat-l    { display: block; font-size: 0.62rem; color: #6c757d; text-transform: uppercase; font-weight: 600; }
+
+.hist-expand {
+  background: #f8f9fa; border-top: 1px solid #e9ecef;
+  padding: 0.75rem 1rem;
+}
+.expand-msg-box  { background: #e9f5ee; border-left: 3px solid #007f3e; border-radius: 8px; padding: 0.5rem 0.75rem; margin-bottom: 0.65rem; font-size: 0.8rem; }
+.expand-msg-label{ font-weight: 700; color: #007f3e; margin-right: 0.4rem; }
+.expand-msg-text { color: #1a4d2e; white-space: pre-wrap; }
+.mono  { font-family: monospace; font-size: 0.78rem; }
+.nowrap{ white-space: nowrap; }
 
 /* ── Misc ────────────────────────────────────────────────────────────────── */
 .empty { padding: 2rem; text-align: center; color: #6c757d; font-size: 0.85rem; }
