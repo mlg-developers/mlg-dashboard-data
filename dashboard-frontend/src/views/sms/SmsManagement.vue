@@ -152,12 +152,20 @@ async function sendSms() {
     }
     startPolling()
   } catch (err) {
-    const d = err?.response?.data
+    const status = err?.response?.status
+    const d      = err?.response?.data
+    console.error('[SMS Send Error]', status, d, err?.message)
     if (d?.errors) {
       const first = Object.values(d.errors)[0]
       sendError.value = Array.isArray(first) ? first[0] : String(first)
+    } else if (d?.message) {
+      sendError.value = d.message
+    } else if (status === 401) {
+      sendError.value = 'Session expired. Please log in again.'
+    } else if (status) {
+      sendError.value = `Server error (${status}). Please try again or contact support.`
     } else {
-      sendError.value = d?.message || 'Failed to send. Please check your input and try again.'
+      sendError.value = 'Network error — no response from server. Check your connection.'
     }
   } finally {
     isSending.value = false
