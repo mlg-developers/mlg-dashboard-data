@@ -336,15 +336,28 @@ onUnmounted(stopPolling)
         <div class="card">
           <div class="card-head"><CIcon icon="cil-description" /><span>Campaign Details</span></div>
           <div class="card-body">
-            <div class="title-row">
-              <label class="lbl mb-0">Campaign Title <span class="req">*</span></label>
-              <label class="toggle-wrap ms-auto" title="Include title in SMS body">
-                <input type="checkbox" v-model="includeTitleInSms" />
-                <span class="toggle"></span>
-              </label>
-              <span class="toggle-hint">{{ includeTitleInSms ? 'Included in SMS' : 'Not in SMS' }}</span>
+            <label class="lbl">Campaign Title <span class="req">*</span></label>
+            <input v-model="campaignTitle" class="inp" :class="{ 'inp-active': includeTitleInSms }" placeholder="e.g. Happy Week — Customer Care 2026" maxlength="255" />
+            <div class="title-include-row" :class="{ on: includeTitleInSms }" @click="includeTitleInSms = !includeTitleInSms">
+              <div class="tir-left">
+                <div class="tir-icon" :class="{ on: includeTitleInSms }">
+                  <CIcon :icon="includeTitleInSms ? 'cil-check' : 'cil-x-circle'" />
+                </div>
+                <div>
+                  <div class="tir-label">Include title in SMS body</div>
+                  <div class="tir-sub" v-if="includeTitleInSms && campaignTitle.trim()">
+                    Preview: <em>"{{ campaignTitle.trim() }}: your message…"</em>
+                  </div>
+                  <div class="tir-sub" v-else-if="includeTitleInSms">Title will be prepended to every message sent</div>
+                  <div class="tir-sub" v-else>Title is used for internal tracking only — not sent in SMS</div>
+                </div>
+              </div>
+              <div class="tir-toggle">
+                <div class="power-toggle" :class="{ on: includeTitleInSms }">
+                  <span class="power-knob"></span>
+                </div>
+              </div>
             </div>
-            <input v-model="campaignTitle" class="inp mt-xs" placeholder="e.g. Happy Week — Customer Care 2026" maxlength="255" />
           </div>
         </div>
 
@@ -588,10 +601,46 @@ onUnmounted(stopPolling)
 .r-phone     { font-size: 0.73rem; color: #6c757d; }
 
 /* ── Labels / Inputs ────────────────────────────────────────────────────── */
-.title-row  { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.4rem; }
-.toggle-hint{ font-size: 0.72rem; color: #6c757d; white-space: nowrap; }
-.mb-0       { margin-bottom: 0 !important; }
-.mt-xs      { margin-top: 0.4rem; }
+/* ── Title Include Row ──────────────────────────────────────────────────────── */
+.inp-active { border-color: #007f3e !important; box-shadow: 0 0 0 3px rgba(0,127,62,.12) !important; }
+
+.title-include-row {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-top: 0.6rem; padding: 0.6rem 0.85rem;
+  border: 1.5px solid #e2e8f0; border-radius: 10px;
+  background: #f8f9fa; cursor: pointer;
+  transition: all .25s; user-select: none;
+}
+.title-include-row:hover { border-color: #b0c4d8; background: #f0f4f8; }
+.title-include-row.on    { border-color: #007f3e; background: #f0fff6; }
+
+.tir-left  { display: flex; align-items: center; gap: 0.65rem; flex: 1; min-width: 0; }
+.tir-icon  {
+  width: 30px; height: 30px; border-radius: 8px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: #e9ecef; color: #6c757d; font-size: 0.85rem;
+  transition: all .25s;
+}
+.tir-icon.on { background: #007f3e; color: white; }
+.tir-label { font-size: 0.8rem; font-weight: 600; color: #344767; }
+.tir-sub   { font-size: 0.72rem; color: #6c757d; margin-top: 0.1rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 280px; }
+.tir-sub em { color: #007f3e; font-style: normal; font-weight: 500; }
+.title-include-row.on .tir-label { color: #007f3e; }
+
+.tir-toggle { flex-shrink: 0; margin-left: 0.75rem; }
+.power-toggle {
+  width: 46px; height: 26px; border-radius: 99px;
+  background: #d1d5db; position: relative; transition: background .25s;
+  box-shadow: inset 0 1px 3px rgba(0,0,0,.15);
+}
+.power-toggle.on { background: #007f3e; }
+.power-knob {
+  position: absolute; width: 20px; height: 20px;
+  background: white; border-radius: 50%;
+  top: 3px; left: 3px; transition: left .25s;
+  box-shadow: 0 1px 4px rgba(0,0,0,.2);
+}
+.power-toggle.on .power-knob { left: 23px; }
 .lbl  { display: block; font-size: 0.78rem; font-weight: 600; color: #344767; margin-bottom: 0.3rem; }
 .req  { color: #dc2626; }
 .inp  { width: 100%; padding: 0.55rem 0.8rem; border: 1.5px solid #e2e8f0; border-radius: 8px; font-size: 0.86rem; color: #1a2533; transition: border-color .2s; box-sizing: border-box; }
