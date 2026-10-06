@@ -182,6 +182,20 @@ class SmsController extends Controller
     public function balance()
     {
         $result = $this->gateway->balance();
-        return response()->json($result);
+
+        if (!($result['success'] ?? false)) {
+            return response()->json(['success' => false, 'balance' => null, 'error' => $result['error'] ?? 'Gateway error'], 502);
+        }
+
+        $body    = $result['data'] ?? [];
+        // Kilakona may return balance under different keys — normalise to one value
+        $balance = $body['balance'] ?? $body['credits'] ?? $body['sms_balance']
+                ?? $body['data']['balance'] ?? $body['data']['credits'] ?? null;
+
+        return response()->json([
+            'success' => true,
+            'balance' => $balance,
+            'raw'     => $body,
+        ]);
     }
 }

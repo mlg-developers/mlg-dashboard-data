@@ -306,9 +306,12 @@ onUnmounted(stopPolling)
       </div>
 
       <div class="top-bar-right">
-        <div v-if="balance" class="balance-chip">
+        <div v-if="balance?.success" class="balance-chip">
           <CIcon icon="cil-credit-card" />
-          Balance: <strong>{{ balance.balance ?? balance.credits ?? balance.data?.balance ?? '—' }}</strong> SMS
+          Balance: <strong>{{ balance.balance ?? '—' }}</strong> SMS
+        </div>
+        <div v-else-if="balance && !balance.success" class="balance-chip err">
+          <CIcon icon="cil-warning" /> Balance unavailable
         </div>
       </div>
     </div>
@@ -636,6 +639,7 @@ onUnmounted(stopPolling)
   padding: 0.3rem 0.85rem; font-size: 0.78rem; color: #166534;
 }
 .balance-chip strong { font-weight: 700; }
+.balance-chip.err { background: #fff5f5; border-color: #fecaca; color: #991b1b; }
 
 /* ── Grid ─────────────────────────────────────────────────────────────────── */
 .compose-grid { display: grid; grid-template-columns: 1fr 1.5fr; gap: 1.25rem; align-items: start; }
