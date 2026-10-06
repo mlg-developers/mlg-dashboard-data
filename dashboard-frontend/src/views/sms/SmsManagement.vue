@@ -74,11 +74,18 @@ function parseFile(file) {
 
       if (!raw.length) { importError.value = 'No phone numbers found. Ensure a column named "phone" or "mobile" exists.'; return }
 
-      // Deduplicate — normalise to digits-only for comparison, keep first occurrence
+      // Normalize all numbers to 255XXXXXXXXX format, then deduplicate
+      const normalizePhone = (p) => {
+        p = p.replace(/\D/g, '')
+        if (p.startsWith('0') && p.length === 10) return '255' + p.slice(1)
+        if (p.length === 9 && /^[67]/.test(p)) return '255' + p
+        return p
+      }
+
       const seenPhones = new Map()
       raw.forEach(r => {
-        const key = r.phone.replace(/\D/g, '')
-        if (!seenPhones.has(key)) seenPhones.set(key, r)
+        const key = normalizePhone(r.phone)
+        if (!seenPhones.has(key)) seenPhones.set(key, { ...r, phone: key })
       })
 
       const parsed = [...seenPhones.values()].map((r, i) => ({ id: i, ...r }))
