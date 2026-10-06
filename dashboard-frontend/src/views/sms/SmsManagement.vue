@@ -395,16 +395,12 @@ onUnmounted(stopPolling)
           <div class="card-head"><CIcon icon="cil-description" /><span>Campaign Details</span></div>
           <div class="card-body">
             <label class="lbl">Campaign Title <span class="req">*</span></label>
-            <input v-model="campaignTitle" class="inp" :class="{ 'inp-active': includeTitleInSms }" placeholder="e.g. Happy Week — Customer Care 2026" maxlength="255" />
-          </div>
-          <div class="msg-tabs" style="border-top:1px solid #f0f0f0;border-bottom:none">
-            <div :class="['msg-tab', includeTitleInSms && 'active']" @click="includeTitleInSms = !includeTitleInSms">
-              <label class="toggle-wrap" @click.stop>
+            <div class="inp-row">
+              <input v-model="campaignTitle" class="inp inp-flex" :class="{ 'inp-active': includeTitleInSms }" placeholder="e.g. Happy Week — Customer Care 2026" maxlength="255" />
+              <label class="toggle-wrap inp-toggle" :title="includeTitleInSms ? 'Title included in SMS' : 'Title not in SMS'">
                 <input type="checkbox" v-model="includeTitleInSms" />
                 <span class="toggle"></span>
               </label>
-              <span>Include title in SMS</span>
-              <span v-if="includeTitleInSms && campaignTitle.trim()" class="dot-ready"></span>
             </div>
           </div>
         </div>
@@ -766,6 +762,9 @@ onUnmounted(stopPolling)
   box-shadow: 0 1px 4px rgba(0,0,0,.2);
 }
 .power-toggle.on .power-knob { left: 23px; }
+.inp-row    { display: flex; align-items: center; gap: 0.5rem; }
+.inp-flex   { flex: 1; }
+.inp-toggle { flex-shrink: 0; }
 .lbl  { display: block; font-size: 0.78rem; font-weight: 600; color: #344767; margin-bottom: 0.3rem; }
 .req  { color: #dc2626; }
 .inp  { width: 100%; padding: 0.55rem 0.8rem; border: 1.5px solid #e2e8f0; border-radius: 8px; font-size: 0.86rem; color: #1a2533; transition: border-color .2s; box-sizing: border-box; }
