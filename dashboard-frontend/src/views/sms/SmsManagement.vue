@@ -396,7 +396,8 @@ onUnmounted(stopPolling)
           <div class="card-body">
             <label class="lbl">Campaign Title <span class="req">*</span></label>
             <input v-model="campaignTitle" class="inp" :class="{ 'inp-active': includeTitleInSms }" placeholder="e.g. Happy Week — Customer Care 2026" maxlength="255" />
-            <div class="title-include-row" :class="{ on: includeTitleInSms }" @click="includeTitleInSms = !includeTitleInSms">
+          </div>
+          <div class="title-include-row" :class="{ on: includeTitleInSms }" @click="includeTitleInSms = !includeTitleInSms" style="margin:0 0.9rem 0.9rem;border-radius:10px;">
               <div class="tir-left">
                 <div class="tir-icon" :class="{ on: includeTitleInSms }">
                   <CIcon :icon="includeTitleInSms ? 'cil-check' : 'cil-x-circle'" />
@@ -415,7 +416,6 @@ onUnmounted(stopPolling)
                   <span class="power-knob"></span>
                 </div>
               </div>
-            </div>
           </div>
         </div>
 
@@ -670,7 +670,7 @@ onUnmounted(stopPolling)
 /* ── Cards ────────────────────────────────────────────────────────────────── */
 .card {
   background: white; border-radius: 14px;
-  box-shadow: 0 2px 10px rgba(0,0,0,.07); overflow: hidden;
+  box-shadow: 0 2px 10px rgba(0,0,0,.07);
 }
 .card-head {
   display: flex; align-items: center; gap: 0.5rem;
