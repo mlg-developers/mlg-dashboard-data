@@ -104,7 +104,8 @@ const enabledMessages = computed(() => messages.value.filter(m => m.enabled && m
 const smsParts = (txt) => Math.ceil((txt?.length || 1) / 160)
 
 // ── Campaign ──────────────────────────────────────────────────────────────────
-const campaignTitle = ref('')
+const campaignTitle        = ref('')
+const includeTitleInSms    = ref(false)
 
 // ── Sending ───────────────────────────────────────────────────────────────────
 const isSending    = ref(false)
@@ -151,7 +152,7 @@ async function sendSms() {
 
       const resp = await smsRequest('POST', '/sms/send', {
         title,
-        message:    `${campaignTitle.value.trim()}: ${group.message}`,
+        message:    includeTitleInSms.value ? `${campaignTitle.value.trim()}: ${group.message}` : group.message,
         recipients: group.recipients,
       })
 
@@ -335,8 +336,15 @@ onUnmounted(stopPolling)
         <div class="card">
           <div class="card-head"><CIcon icon="cil-description" /><span>Campaign Details</span></div>
           <div class="card-body">
-            <label class="lbl">Campaign Title <span class="req">*</span></label>
-            <input v-model="campaignTitle" class="inp" placeholder="e.g. Happy Week — Customer Care 2026" maxlength="255" />
+            <div class="title-row">
+              <label class="lbl mb-0">Campaign Title <span class="req">*</span></label>
+              <label class="toggle-wrap ms-auto" title="Include title in SMS body">
+                <input type="checkbox" v-model="includeTitleInSms" />
+                <span class="toggle"></span>
+              </label>
+              <span class="toggle-hint">{{ includeTitleInSms ? 'Included in SMS' : 'Not in SMS' }}</span>
+            </div>
+            <input v-model="campaignTitle" class="inp mt-xs" placeholder="e.g. Happy Week — Customer Care 2026" maxlength="255" />
           </div>
         </div>
 
@@ -580,6 +588,10 @@ onUnmounted(stopPolling)
 .r-phone     { font-size: 0.73rem; color: #6c757d; }
 
 /* ── Labels / Inputs ────────────────────────────────────────────────────── */
+.title-row  { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.4rem; }
+.toggle-hint{ font-size: 0.72rem; color: #6c757d; white-space: nowrap; }
+.mb-0       { margin-bottom: 0 !important; }
+.mt-xs      { margin-top: 0.4rem; }
 .lbl  { display: block; font-size: 0.78rem; font-weight: 600; color: #344767; margin-bottom: 0.3rem; }
 .req  { color: #dc2626; }
 .inp  { width: 100%; padding: 0.55rem 0.8rem; border: 1.5px solid #e2e8f0; border-radius: 8px; font-size: 0.86rem; color: #1a2533; transition: border-color .2s; box-sizing: border-box; }
