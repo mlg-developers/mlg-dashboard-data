@@ -407,13 +407,13 @@ onUnmounted(stopPolling)
           }">
             <div style="display:flex;align-items:center;gap:0.65rem;flex:1;min-width:0">
               <div :style="{
-                width:'30px',height:'30px',borderRadius:'8px',flexShrink:0,
+                width:'20px',height:'20px',borderRadius:'6px',flexShrink:0,
                 display:'flex',alignItems:'center',justifyContent:'center',
                 background: includeTitleInSms ? '#007f3e' : '#e9ecef',
                 color: includeTitleInSms ? 'white' : '#6c757d',
                 transition:'all .25s'
               }">
-                <CIcon :icon="includeTitleInSms ? 'cil-check' : 'cil-x-circle'" style="width:14px;height:14px" />
+                <CIcon :icon="includeTitleInSms ? 'cil-check' : 'cil-x-circle'" style="width:11px;height:11px" />
               </div>
               <div>
                 <div :style="{fontSize:'0.8rem',fontWeight:600,color: includeTitleInSms ? '#007f3e' : '#344767'}">Include title in SMS body</div>
@@ -573,7 +573,12 @@ onUnmounted(stopPolling)
               <div class="hstat"><span class="hstat-n">{{ c.total_recipients }}</span><span class="hstat-l">Total</span></div>
               <div class="hstat delivered"><span class="hstat-n">{{ c.delivered_count }}</span><span class="hstat-l">Delivered</span></div>
               <div class="hstat failed"><span class="hstat-n">{{ c.failed_count }}</span><span class="hstat-l">Failed</span></div>
-              <div class="hstat pending"><span class="hstat-n">{{ Math.max(0, c.total_recipients - c.delivered_count - c.failed_count) }}</span><span class="hstat-l">Pending</span></div>
+              <template v-if="c.status === 'completed' && c.delivered_count === 0 && c.failed_count === 0">
+                <div class="hstat sent-stat"><span class="hstat-n">{{ c.sent_count }}</span><span class="hstat-l">Sent</span></div>
+              </template>
+              <template v-else>
+                <div class="hstat pending"><span class="hstat-n">{{ Math.max(0, c.total_recipients - c.delivered_count - c.failed_count) }}</span><span class="hstat-l">Pending</span></div>
+              </template>
             </div>
             <span :class="`log-badge ${c.status}`">{{ c.status }}</span>
             <span class="muted small nowrap">{{ new Date(c.created_at).toLocaleString() }}</span>
@@ -910,6 +915,8 @@ onUnmounted(stopPolling)
 .hstat.delivered { background: #f0fff4; }
 .hstat.failed    { background: #fff5f5; }
 .hstat.pending   { background: #fffbeb; }
+.hstat.sent-stat { background: #eff6ff; }
+.hstat.sent-stat .hstat-n { color: #1d4ed8; }
 .hstat-n    { display: block; font-size: 1rem; font-weight: 700; color: #1a2533; }
 .hstat.delivered .hstat-n { color: #22c55e; }
 .hstat.failed    .hstat-n { color: #ef4444; }
