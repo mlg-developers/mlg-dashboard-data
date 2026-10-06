@@ -151,7 +151,7 @@ async function sendSms() {
 
       const resp = await smsRequest('POST', '/sms/send', {
         title,
-        message:    group.message,
+        message:    `${campaignTitle.value.trim()}: ${group.message}`,
         recipients: group.recipients,
       })
 
