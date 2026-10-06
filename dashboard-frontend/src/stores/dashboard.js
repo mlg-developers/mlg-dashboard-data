@@ -1,4 +1,4 @@
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, markRaw } from 'vue'
 import { defineStore } from 'pinia'
 import axios from 'axios'
 import * as XLSX from 'xlsx'
@@ -1300,6 +1300,6 @@ export const useDashboardStore = defineStore('dashboard', () => {
     isUsingCachedData,
     isOfflineUIReported,
     calculateDateRange,
-    api,
+    api: markRaw(api),
   }
 })
