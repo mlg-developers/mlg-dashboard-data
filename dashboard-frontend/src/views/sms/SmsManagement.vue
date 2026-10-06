@@ -1,14 +1,20 @@
 <script setup>
 import { ref, computed, onUnmounted } from 'vue'
 import * as XLSX from 'xlsx'
-import { useDashboardStore } from '@/stores/dashboard'
+import axios from 'axios'
 
-const dashboard = useDashboardStore()
+// Self-contained API client — avoids Pinia reactive proxy issues
+const smsApi = axios.create({ baseURL: '/api/v1' })
+smsApi.interceptors.request.use(config => {
+  const token = localStorage.getItem('mnh_token')
+  if (token) config.headers.Authorization = `Bearer ${token}`
+  return config
+})
 
 // ── Balance ──────────────────────────────────────────────────────────────────
 const balance = ref(null)
 async function fetchBalance() {
-  try { balance.value = (await dashboard.api.get('/sms/balance')).data } catch (_) {}
+  try { balance.value = (await smsApi.get('/sms/balance')).data } catch (_) {}
 }
 fetchBalance()
 
@@ -132,7 +138,7 @@ async function sendSms() {
         ? `${campaignTitle.value.trim()} [${group.label}]`
         : campaignTitle.value.trim()
 
-      const resp = await dashboard.api.post('/sms/send', {
+      const resp = await smsApi.post('/sms/send', {
         title,
         message:    group.message,
         recipients: group.recipients,
@@ -185,8 +191,8 @@ async function pollAll() {
     allDone = false
     try {
       const [sr, lr] = await Promise.all([
-        dashboard.api.get(`/sms/campaigns/${c.id}/status`),
-        dashboard.api.get(`/sms/campaigns/${c.id}/logs`),
+        smsApi.get(`/sms/campaigns/${c.id}/status`),
+        smsApi.get(`/sms/campaigns/${c.id}/logs`),
       ])
       Object.assign(c, {
         delivered: sr.data.delivered,
@@ -211,7 +217,7 @@ const loadingHistory = ref(false)
 
 async function loadHistory() {
   loadingHistory.value = true
-  try { historyList.value = ((await dashboard.api.get('/sms/campaigns')).data?.data) ?? [] } catch (_) {}
+  try { historyList.value = ((await smsApi.get('/sms/campaigns')).data?.data) ?? [] } catch (_) {}
   finally { loadingHistory.value = false }
 }
 
