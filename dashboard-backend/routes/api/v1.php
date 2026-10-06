@@ -6,6 +6,7 @@ use Illuminate\Support\Facades\Route;
 
 use App\Http\Controllers\Api\V1\AuthController;
 use App\Http\Controllers\Api\V1\ReportsController;
+use App\Http\Controllers\Api\V1\SmsController;
 
 /*
 |--------------------------------------------------------------------------
@@ -62,6 +63,14 @@ Route::middleware('auth:sanctum')->group(function () {
     // Authenticated exports
     Route::prefix('dashboard')->controller(DashboardController::class)->group(function () {
         Route::get('/pending-patients/export', 'exportPendingPatients');
+    });
+
+    // SMS Management Routes
+    Route::prefix('sms')->controller(SmsController::class)->group(function () {
+        Route::post('/send', 'send');
+        Route::get('/campaigns', 'campaigns');
+        Route::get('/campaigns/{id}/logs', 'campaignLogs');
+        Route::get('/campaigns/{id}/status', 'status');
     });
 
     // Profile Routes

@@ -14,6 +14,10 @@ const logout = () => {
 const goToProfile = () => {
   router.push('/profile')
 }
+
+const goToSms = () => {
+  router.push('/sms-management')
+}
 </script>
 
 <template>
@@ -31,6 +35,10 @@ const goToProfile = () => {
 
       <CDropdownItem @click="goToProfile" class="premium-item" style="cursor: pointer">
         <CIcon icon="cil-user" class="me-2 text-primary" /> Profile
+      </CDropdownItem>
+
+      <CDropdownItem @click="goToSms" class="premium-item" style="cursor: pointer">
+        <CIcon icon="cil-speech" class="me-2 text-success" /> SMS Management
       </CDropdownItem>
 
       <CDropdownDivider />

@@ -1300,5 +1300,6 @@ export const useDashboardStore = defineStore('dashboard', () => {
     isUsingCachedData,
     isOfflineUIReported,
     calculateDateRange,
+    api,
   }
 })

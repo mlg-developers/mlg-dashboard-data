@@ -34,6 +34,11 @@ const routes = [
         component: () => import('@/views/reports/Reports.vue'),
       },
       {
+        path: '/sms-management',
+        name: 'SmsManagement',
+        component: () => import('@/views/sms/SmsManagement.vue'),
+      },
+      {
         path: '/charts',
         name: 'Charts',
         component: () => import('@/views/charts/Charts.vue'),
