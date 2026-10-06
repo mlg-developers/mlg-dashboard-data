@@ -28,6 +28,7 @@ const selectedIds = ref(new Set())
 const fileInputRef = ref(null)
 const isDragging = ref(false)
 const importError = ref('')
+const duplicatesRemoved = ref(0)
 
 const allSelected = computed(() =>
   contacts.value.length > 0 && selectedIds.value.size === contacts.value.length
@@ -50,6 +51,7 @@ function toggleOne(idx) {
 
 function parseFile(file) {
   importError.value = ''
+  duplicatesRemoved.value = 0
   const reader = new FileReader()
   reader.onload = (e) => {
     try {
@@ -63,15 +65,24 @@ function parseFile(file) {
       const phoneKey = keys.find(k => /phone|mobile|tel|msisdn/i.test(k)) || keys[0]
       const nameKey  = keys.find(k => /name|client|patient/i.test(k) && k !== phoneKey) || null
 
-      const parsed = rows
-        .map((r, i) => ({
-          id:    i,
-          phone: String(r[phoneKey] ?? '').trim(),
+      const raw = rows
+        .map((r) => ({
+          phone: String(r[phoneKey] ?? '').trim().replace(/\s+/g, ''),
           name:  nameKey ? String(r[nameKey] ?? '').trim() : '',
         }))
         .filter(r => r.phone)
 
-      if (!parsed.length) { importError.value = 'No phone numbers found. Ensure a column named "phone" or "mobile" exists.'; return }
+      if (!raw.length) { importError.value = 'No phone numbers found. Ensure a column named "phone" or "mobile" exists.'; return }
+
+      // Deduplicate — normalise to digits-only for comparison, keep first occurrence
+      const seenPhones = new Map()
+      raw.forEach(r => {
+        const key = r.phone.replace(/\D/g, '')
+        if (!seenPhones.has(key)) seenPhones.set(key, r)
+      })
+
+      const parsed = [...seenPhones.values()].map((r, i) => ({ id: i, ...r }))
+      duplicatesRemoved.value = raw.length - parsed.length
 
       contacts.value = parsed
       selectedIds.value = new Set(parsed.map((_, i) => i))
@@ -259,6 +270,10 @@ function statusBadge(s) {
               <input ref="fileInputRef" type="file" accept=".xlsx,.xls,.csv" hidden @change="onFileChange" />
             </div>
             <div v-if="importError" class="alert-mini danger mt-2">{{ importError }}</div>
+            <div v-if="duplicatesRemoved > 0" class="alert-mini warning mt-2">
+              <CIcon icon="cil-warning" class="me-1" />
+              {{ duplicatesRemoved }} duplicate phone number{{ duplicatesRemoved > 1 ? 's' : '' }} removed — only unique numbers kept.
+            </div>
           </div>
         </div>
 
@@ -740,6 +755,7 @@ function statusBadge(s) {
   border-radius: 8px; font-size: 0.82rem;
 }
 .alert-mini.danger { background: #fee2e2; color: #991b1b; border: 1px solid #fecaca; }
+.alert-mini.warning { background: #fffbeb; color: #92400e; border: 1px solid #fde68a; }
 .mt-2 { margin-top: 0.5rem; }
 .ms-auto { margin-left: auto; }
 
