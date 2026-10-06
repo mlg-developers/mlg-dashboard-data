@@ -188,9 +188,9 @@ class SmsController extends Controller
         }
 
         $body    = $result['data'] ?? [];
-        // Kilakona may return balance under different keys — normalise to one value
-        $balance = $body['balance'] ?? $body['credits'] ?? $body['sms_balance']
-                ?? $body['data']['balance'] ?? $body['data']['credits'] ?? null;
+        // Kilakona returns: { code, success, message, data: { totalSms: N } }
+        $balance = $body['data']['totalSms'] ?? $body['data']['balance'] ?? $body['data']['credits']
+                ?? $body['balance'] ?? $body['credits'] ?? $body['sms_balance'] ?? null;
 
         return response()->json([
             'success' => true,
