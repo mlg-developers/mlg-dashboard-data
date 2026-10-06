@@ -397,25 +397,47 @@ onUnmounted(stopPolling)
             <label class="lbl">Campaign Title <span class="req">*</span></label>
             <input v-model="campaignTitle" class="inp" :class="{ 'inp-active': includeTitleInSms }" placeholder="e.g. Happy Week — Customer Care 2026" maxlength="255" />
           </div>
-          <div class="title-include-row" :class="{ on: includeTitleInSms }" @click="includeTitleInSms = !includeTitleInSms" style="margin:0 0.9rem 0.9rem;border-radius:10px;">
-              <div class="tir-left">
-                <div class="tir-icon" :class="{ on: includeTitleInSms }">
-                  <CIcon :icon="includeTitleInSms ? 'cil-check' : 'cil-x-circle'" />
-                </div>
-                <div>
-                  <div class="tir-label">Include title in SMS body</div>
-                  <div class="tir-sub" v-if="includeTitleInSms && campaignTitle.trim()">
-                    Preview: <em>"{{ campaignTitle.trim() }}: your message…"</em>
-                  </div>
-                  <div class="tir-sub" v-else-if="includeTitleInSms">Title will be prepended to every message sent</div>
-                  <div class="tir-sub" v-else>Title is used for internal tracking only — not sent in SMS</div>
+          <div @click="includeTitleInSms = !includeTitleInSms" :style="{
+            display:'flex', alignItems:'center', justifyContent:'space-between',
+            margin:'0 0.9rem 0.9rem', padding:'0.6rem 0.85rem', cursor:'pointer',
+            border: includeTitleInSms ? '1.5px solid #007f3e' : '1.5px solid #e2e8f0',
+            borderRadius:'10px',
+            background: includeTitleInSms ? '#f0fff6' : '#f8f9fa',
+            userSelect:'none', transition:'all .25s'
+          }">
+            <div style="display:flex;align-items:center;gap:0.65rem;flex:1;min-width:0">
+              <div :style="{
+                width:'30px',height:'30px',borderRadius:'8px',flexShrink:0,
+                display:'flex',alignItems:'center',justifyContent:'center',
+                background: includeTitleInSms ? '#007f3e' : '#e9ecef',
+                color: includeTitleInSms ? 'white' : '#6c757d',
+                transition:'all .25s'
+              }">
+                <CIcon :icon="includeTitleInSms ? 'cil-check' : 'cil-x-circle'" style="width:14px;height:14px" />
+              </div>
+              <div>
+                <div :style="{fontSize:'0.8rem',fontWeight:600,color: includeTitleInSms ? '#007f3e' : '#344767'}">Include title in SMS body</div>
+                <div style="font-size:0.72rem;color:#6c757d;margin-top:0.1rem">
+                  <template v-if="includeTitleInSms && campaignTitle.trim()">Preview: <em style="color:#007f3e;font-style:normal;font-weight:500">"{{ campaignTitle.trim() }}: your message…"</em></template>
+                  <template v-else-if="includeTitleInSms">Title will be prepended to every message sent</template>
+                  <template v-else>Title is for internal tracking only — not sent in SMS</template>
                 </div>
               </div>
-              <div class="tir-toggle">
-                <div class="power-toggle" :class="{ on: includeTitleInSms }">
-                  <span class="power-knob"></span>
-                </div>
+            </div>
+            <div style="flex-shrink:0;margin-left:0.75rem">
+              <div :style="{
+                width:'46px',height:'26px',borderRadius:'99px',position:'relative',
+                background: includeTitleInSms ? '#007f3e' : '#d1d5db',
+                transition:'background .25s', boxShadow:'inset 0 1px 3px rgba(0,0,0,.15)'
+              }">
+                <span :style="{
+                  position:'absolute',width:'20px',height:'20px',background:'white',
+                  borderRadius:'50%',top:'3px',
+                  left: includeTitleInSms ? '23px' : '3px',
+                  transition:'left .25s', boxShadow:'0 1px 4px rgba(0,0,0,.2)'
+                }"></span>
               </div>
+            </div>
           </div>
         </div>
 
