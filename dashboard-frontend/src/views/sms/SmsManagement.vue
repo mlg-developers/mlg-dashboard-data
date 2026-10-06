@@ -678,7 +678,7 @@ onUnmounted(stopPolling)
   font-size: 0.82rem; font-weight: 600; color: #1a2533;
   background: linear-gradient(to right,#f8f9fa,#fff);
 }
-.card-body       { padding: 0.9rem; }
+.card-body       { padding: 0.9rem; overflow: visible; }
 .card-body.no-bot-pad { padding-bottom: 0; }
 .card-foot       { padding: 0.45rem 1rem; background: #f8f9fa; border-top: 1px solid #f0f0f0; font-size: 0.75rem; color: #6c757d; }
 .badge           { background: #007f3e; color: white; border-radius: 20px; padding: 0 7px; font-size: 0.7rem; font-weight: 700; }
@@ -734,11 +734,12 @@ onUnmounted(stopPolling)
 .inp-active { border-color: #007f3e !important; box-shadow: 0 0 0 3px rgba(0,127,62,.12) !important; }
 
 .title-include-row {
-  display: flex; align-items: center; justify-content: space-between;
-  margin-top: 0.6rem; padding: 0.6rem 0.85rem;
+  display: flex !important; align-items: center; justify-content: space-between;
+  margin-top: 0.75rem; padding: 0.65rem 0.85rem;
   border: 1.5px solid #e2e8f0; border-radius: 10px;
   background: #f8f9fa; cursor: pointer;
   transition: all .25s; user-select: none;
+  visibility: visible !important; opacity: 1 !important;
 }
 .title-include-row:hover { border-color: #b0c4d8; background: #f0f4f8; }
 .title-include-row.on    { border-color: #007f3e; background: #f0fff6; }
