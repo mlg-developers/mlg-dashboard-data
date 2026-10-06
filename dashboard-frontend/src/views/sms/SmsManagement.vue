@@ -37,8 +37,16 @@ const isDragging      = ref(false)
 const importError     = ref('')
 const duplicatesRemoved = ref(0)
 
-const allSelected  = computed(() => contacts.value.length > 0 && selectedIds.value.size === contacts.value.length)
+const allSelected   = computed(() => contacts.value.length > 0 && selectedIds.value.size === contacts.value.length)
 const selectedCount = computed(() => selectedIds.value.size)
+
+const recipientsPage    = ref(1)
+const recipientsPerPage = 10
+const recipientPages    = computed(() => Math.ceil(contacts.value.length / recipientsPerPage))
+const pagedContacts     = computed(() => {
+  const start = (recipientsPage.value - 1) * recipientsPerPage
+  return contacts.value.slice(start, start + recipientsPerPage).map(c => ({ ...c, _idx: contacts.value.indexOf(c) }))
+})
 
 function toggleAll() {
   selectedIds.value = allSelected.value ? new Set() : new Set(contacts.value.map((_, i) => i))
@@ -84,6 +92,7 @@ function parseFile(file) {
       duplicatesRemoved.value = raw.length - parsed.length
       contacts.value    = parsed
       selectedIds.value = new Set(parsed.map((_, i) => i))
+      recipientsPage.value = 1
     } catch (err) { importError.value = 'Failed to read file: ' + err.message }
   }
   reader.readAsBinaryString(file)
@@ -350,10 +359,10 @@ onUnmounted(stopPolling)
             <button class="ghost-btn ms-auto" @click="toggleAll">{{ allSelected ? 'Deselect All' : 'Select All' }}</button>
           </div>
           <div class="recipients-list">
-            <div v-for="(c, i) in contacts" :key="i"
-              class="r-row" :class="{ sel: selectedIds.has(i) }" @click="toggleOne(i)">
-              <div class="r-check" :class="{ on: selectedIds.has(i) }">
-                <CIcon v-if="selectedIds.has(i)" icon="cil-check" class="chk-icon" />
+            <div v-for="c in pagedContacts" :key="c._idx"
+              class="r-row" :class="{ sel: selectedIds.has(c._idx) }" @click="toggleOne(c._idx)">
+              <div class="r-check" :class="{ on: selectedIds.has(c._idx) }">
+                <CIcon v-if="selectedIds.has(c._idx)" icon="cil-check" class="chk-icon" />
               </div>
               <div class="r-info">
                 <span class="r-name">{{ c.name || '—' }}</span>
@@ -361,7 +370,19 @@ onUnmounted(stopPolling)
               </div>
             </div>
           </div>
-          <div class="card-foot"><strong>{{ selectedCount }}</strong> of {{ contacts.length }} selected</div>
+
+          <!-- Pagination -->
+          <div v-if="recipientPages > 1" class="r-pagination">
+            <button class="r-page-btn" :disabled="recipientsPage===1" @click="recipientsPage--">‹</button>
+            <template v-for="p in recipientPages" :key="p">
+              <button v-if="p===1 || p===recipientPages || Math.abs(p-recipientsPage)<=1"
+                :class="['r-page-btn', p===recipientsPage && 'active']" @click="recipientsPage=p">{{ p }}</button>
+              <span v-else-if="Math.abs(p-recipientsPage)===2" class="r-page-dot">…</span>
+            </template>
+            <button class="r-page-btn" :disabled="recipientsPage===recipientPages" @click="recipientsPage++">›</button>
+          </div>
+
+          <div class="card-foot"><strong>{{ selectedCount }}</strong> of {{ contacts.length }} selected · page {{ recipientsPage }}/{{ recipientPages }}</div>
         </div>
 
       </div>
@@ -685,7 +706,19 @@ onUnmounted(stopPolling)
 .mb            { margin-bottom: 0.75rem; }
 
 /* ── Recipients ──────────────────────────────────────────────────────────── */
-.recipients-list { max-height: 300px; overflow-y: auto; }
+.recipients-list { height: 380px; overflow-y: auto; border-bottom: 1px solid #f0f0f0; }
+
+/* Pagination */
+.r-pagination { display: flex; align-items: center; justify-content: center; gap: 0.25rem; padding: 0.5rem 0.75rem; }
+.r-page-btn {
+  min-width: 28px; height: 28px; border-radius: 6px; border: 1.5px solid #e2e8f0;
+  background: white; color: #344767; font-size: 0.78rem; font-weight: 600;
+  cursor: pointer; transition: all .15s; padding: 0 0.35rem;
+}
+.r-page-btn:hover:not(:disabled) { border-color: #007f3e; color: #007f3e; }
+.r-page-btn.active { background: #007f3e; border-color: #007f3e; color: white; }
+.r-page-btn:disabled { opacity: .35; cursor: default; }
+.r-page-dot { font-size: 0.78rem; color: #6c757d; padding: 0 0.15rem; }
 .r-row  { display: flex; align-items: center; gap: 0.7rem; padding: 0.5rem 1rem; border-bottom: 1px solid #f4f4f4; cursor: pointer; transition: background .15s; }
 .r-row:hover { background: #f8fff9; }
 .r-row.sel   { background: #f0fff5; }
