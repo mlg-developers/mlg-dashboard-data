@@ -36,6 +36,9 @@ Route::prefix('dashboard')->controller(DashboardController::class)->group(functi
     Route::get('/top-diseases', 'getTopDiseases');
 });
 
+// SMS Delivery Callback (called by Kilakona — no auth)
+Route::post('/sms/delivery-callback/{campaignId}', [SmsController::class, 'deliveryCallback']);
+
 // Reports Routes
 Route::prefix('dashboard/reports')->controller(ReportsController::class)->group(function () {
     Route::get('/pending', 'pending');
@@ -71,6 +74,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/campaigns', 'campaigns');
         Route::get('/campaigns/{id}/logs', 'campaignLogs');
         Route::get('/campaigns/{id}/status', 'status');
+        Route::get('/balance', 'balance');
     });
 
     // Profile Routes

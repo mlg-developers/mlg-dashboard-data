@@ -9,7 +9,7 @@ class SmsCampaign extends Model
     protected $fillable = [
         'title', 'message', 'total_recipients',
         'sent_count', 'delivered_count', 'failed_count',
-        'status', 'created_by',
+        'status', 'shoot_id', 'created_by',
     ];
 
     public function logs()

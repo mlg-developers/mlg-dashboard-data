@@ -5,6 +5,23 @@ import { useDashboardStore } from '@/stores/dashboard'
 
 const dashboard = useDashboardStore()
 
+// ── Balance ──────────────────────────────────────────────────────────────────
+const balance = ref(null)
+const loadingBalance = ref(false)
+
+async function fetchBalance() {
+  loadingBalance.value = true
+  try {
+    const r = await dashboard.api.get('/sms/balance')
+    balance.value = r.data
+  } catch (_) {
+    balance.value = null
+  } finally {
+    loadingBalance.value = false
+  }
+}
+fetchBalance()
+
 // ── Contacts ────────────────────────────────────────────────────────────────
 const contacts = ref([])
 const selectedIds = ref(new Set())
@@ -197,6 +214,14 @@ function statusBadge(s) {
           <p class="sms-subtitle">Send promotional and event messages to clients</p>
         </div>
       </div>
+      <div class="balance-chip" v-if="balance?.data || loadingBalance">
+        <CIcon icon="cil-credit-card" class="me-1" />
+        <span v-if="loadingBalance">…</span>
+        <span v-else>
+          Balance: <strong>{{ balance?.data?.balance ?? balance?.data?.credits ?? JSON.stringify(balance?.data) }}</strong> SMS
+        </span>
+      </div>
+
       <div class="sms-header-tabs">
         <button :class="['tab-btn', activeTab === 'compose' && 'active']" @click="switchTab('compose')">
           <CIcon icon="cil-pencil" class="me-1" /> Compose
@@ -505,6 +530,13 @@ function statusBadge(s) {
 .sms-title { font-size: 1.2rem; font-weight: 700; margin: 0; color: #1a2533; }
 .sms-subtitle { font-size: 0.8rem; color: #6c757d; margin: 0; }
 
+.balance-chip {
+  display: flex; align-items: center; gap: 0.3rem;
+  background: #f0fff6; border: 1.5px solid #b7f0d0;
+  border-radius: 20px; padding: 0.3rem 0.85rem;
+  font-size: 0.8rem; color: #166534;
+}
+.balance-chip strong { font-weight: 700; }
 .sms-header-tabs { display: flex; gap: 0.5rem; }
 .tab-btn {
   padding: 0.45rem 1rem; border-radius: 8px; border: 1.5px solid #dee2e6;
