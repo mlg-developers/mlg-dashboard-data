@@ -135,7 +135,7 @@ function shuffle(arr) {
 async function sendSms() {
   sendError.value = ''
 
-  if (!campaignTitle.value.trim())      { sendError.value = 'Campaign title is required.'; return }
+  if (includeTitleInSms.value && !campaignTitle.value.trim()) { sendError.value = 'Campaign title is required when including title in SMS.'; return }
   if (!enabledMessages.value.length)    { sendError.value = 'At least one message with content is required.'; return }
   if (selectedCount.value === 0)        { sendError.value = 'Select at least one recipient.'; return }
 
@@ -155,9 +155,8 @@ async function sendSms() {
 
   try {
     for (const [idx, group] of groups.entries()) {
-      const title = groups.length > 1
-        ? `${campaignTitle.value.trim()} [${group.label}]`
-        : campaignTitle.value.trim()
+      const baseTitle = campaignTitle.value.trim() || `Campaign ${new Date().toLocaleDateString()}`
+      const title = groups.length > 1 ? `${baseTitle} [${group.label}]` : baseTitle
 
       const resp = await smsRequest('POST', '/sms/send', {
         title,
@@ -459,7 +458,7 @@ onUnmounted(stopPolling)
               </div>
             </div>
 
-            <button class="send-btn" :disabled="isSending || selectedCount===0 || !enabledMessages.length || !campaignTitle.trim()" @click="sendSms">
+            <button class="send-btn" :disabled="isSending || selectedCount===0 || !enabledMessages.length || (includeTitleInSms && !campaignTitle.trim())" @click="sendSms">
               <span v-if="!isSending"><CIcon icon="cil-send" /> Send to {{ selectedCount }} Recipient{{ selectedCount!==1?'s':'' }}</span>
               <span v-else class="d-flex align-items-center gap-2">
                 <span class="spinner-border spinner-border-sm"></span> Sending…
