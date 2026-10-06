@@ -229,6 +229,13 @@ const loadingHistory  = ref(false)
 const expandedRow     = ref(null)   // campaign id currently expanded
 const expandedLogs    = ref([])
 const loadingLogs     = ref(false)
+const expandedSmsRows = ref(new Set())  // log ids with SMS body open
+
+function toggleSmsRow(logId) {
+  const s = new Set(expandedSmsRows.value)
+  s.has(logId) ? s.delete(logId) : s.add(logId)
+  expandedSmsRows.value = s
+}
 
 async function loadHistory() {
   loadingHistory.value = true
@@ -249,7 +256,7 @@ async function loadHistory() {
 }
 
 async function toggleExpand(c) {
-  if (expandedRow.value === c.id) { expandedRow.value = null; expandedLogs.value = []; return }
+  if (expandedRow.value === c.id) { expandedRow.value = null; expandedLogs.value = []; expandedSmsRows.value = new Set(); return }
   expandedRow.value = c.id
   expandedLogs.value = []
   loadingLogs.value  = true
@@ -537,16 +544,40 @@ onUnmounted(stopPolling)
                 <span class="expand-msg-text">{{ c.message }}</span>
               </div>
               <table class="logs-table mt-xs">
-                <thead><tr><th>#</th><th>Name</th><th>Phone</th><th>Status</th><th>Sent At</th><th>Note</th></tr></thead>
-                <tbody>
-                  <tr v-for="(log,li) in expandedLogs" :key="log.id">
-                    <td>{{ li+1 }}</td>
-                    <td>{{ log.recipient_name||'—' }}</td>
-                    <td class="mono">{{ log.phone }}</td>
-                    <td><span :class="`log-badge ${log.status}`">{{ log.status }}</span></td>
-                    <td class="muted small">{{ log.sent_at ? new Date(log.sent_at).toLocaleString() : '—' }}</td>
-                    <td class="muted small">{{ log.error_message||'—' }}</td>
+                <thead>
+                  <tr>
+                    <th>#</th>
+                    <th>Name</th>
+                    <th>Mobile</th>
+                    <th>SMS</th>
+                    <th>Status</th>
+                    <th>Sent At</th>
                   </tr>
+                </thead>
+                <tbody>
+                  <template v-for="(log,li) in expandedLogs" :key="log.id">
+                    <tr :class="{ 'sms-open': expandedSmsRows.has(log.id) }">
+                      <td>{{ li+1 }}</td>
+                      <td>{{ log.recipient_name||'—' }}</td>
+                      <td class="mono">{{ log.phone }}</td>
+                      <td>
+                        <button class="sms-peek-btn" :class="{ active: expandedSmsRows.has(log.id) }" @click.stop="toggleSmsRow(log.id)" :title="expandedSmsRows.has(log.id) ? 'Hide message' : 'View message'">
+                          <CIcon :icon="expandedSmsRows.has(log.id) ? 'cil-x' : 'cil-envelope-open'" />
+                          <span>{{ expandedSmsRows.has(log.id) ? 'Hide' : 'View' }}</span>
+                        </button>
+                      </td>
+                      <td><span :class="`log-badge ${log.status}`">{{ log.status }}</span></td>
+                      <td class="muted small">{{ log.sent_at ? new Date(log.sent_at).toLocaleString() : '—' }}</td>
+                    </tr>
+                    <tr v-if="expandedSmsRows.has(log.id)" class="sms-body-row">
+                      <td colspan="6">
+                        <div class="sms-body-box">
+                          <span class="sms-body-to">To {{ log.phone }}:</span>
+                          <span class="sms-body-txt">{{ historyList.find(hc => hc.id === expandedRow)?.message || '—' }}</span>
+                        </div>
+                      </td>
+                    </tr>
+                  </template>
                 </tbody>
               </table>
             </div>
@@ -834,6 +865,33 @@ onUnmounted(stopPolling)
 .expand-msg-text { color: #1a4d2e; white-space: pre-wrap; }
 .mono  { font-family: monospace; font-size: 0.78rem; }
 .nowrap{ white-space: nowrap; }
+
+/* SMS peek button */
+.sms-peek-btn {
+  display: inline-flex; align-items: center; gap: 0.3rem;
+  padding: 0.22rem 0.6rem; border-radius: 6px; font-size: 0.72rem; font-weight: 600;
+  border: 1.5px solid #d1d5db; background: white; color: #344767; cursor: pointer;
+  transition: all .2s;
+}
+.sms-peek-btn:hover  { border-color: #007f3e; color: #007f3e; background: #f0fff6; }
+.sms-peek-btn.active { border-color: #dc2626; color: #dc2626; background: #fff5f5; }
+.sms-peek-btn svg    { width: 13px; height: 13px; }
+
+/* Row highlight when SMS open */
+.logs-table tbody tr.sms-open td { background: #f0fff6; }
+
+/* SMS body inline row */
+.sms-body-row td { padding: 0 !important; }
+.sms-body-box {
+  margin: 0 1rem 0.5rem 2.5rem;
+  background: #e9f5ee; border-left: 3px solid #007f3e;
+  border-radius: 0 8px 8px 0; padding: 0.5rem 0.8rem;
+  font-size: 0.78rem; color: #1a4d2e;
+  animation: slideDown .18s ease;
+}
+.sms-body-to  { font-weight: 700; color: #007f3e; margin-right: 0.5rem; display: block; font-size: 0.7rem; margin-bottom: 0.2rem; }
+.sms-body-txt { white-space: pre-wrap; word-break: break-word; }
+@keyframes slideDown { from { opacity:0; transform: translateY(-4px); } to { opacity:1; transform: translateY(0); } }
 
 /* ── Misc ────────────────────────────────────────────────────────────────── */
 .empty { padding: 2rem; text-align: center; color: #6c757d; font-size: 0.85rem; }
