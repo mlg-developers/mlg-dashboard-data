@@ -1,20 +1,31 @@
 <script setup>
 import { ref, computed, onUnmounted } from 'vue'
 import * as XLSX from 'xlsx'
-import axios from 'axios'
-
-// Self-contained API client — avoids Pinia reactive proxy issues
-const smsApi = axios.create({ baseURL: '/api/v1' })
-smsApi.interceptors.request.use(config => {
+// Self-contained fetch wrapper — no axios, no Pinia, no proxy issues
+async function smsRequest(method, path, body) {
   const token = localStorage.getItem('mnh_token')
-  if (token) config.headers.Authorization = `Bearer ${token}`
-  return config
-})
+  const res = await fetch(`/api/v1${path}`, {
+    method,
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    ...(body ? { body: JSON.stringify(body) } : {}),
+  })
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) {
+    const err = new Error(data?.message || `HTTP ${res.status}`)
+    err.status   = res.status
+    err.data     = data
+    throw err
+  }
+  return data
+}
 
 // ── Balance ──────────────────────────────────────────────────────────────────
 const balance = ref(null)
 async function fetchBalance() {
-  try { balance.value = (await smsApi.get('/sms/balance')).data } catch (_) {}
+  try { balance.value = await smsRequest('GET', '/sms/balance') } catch (_) {}
 }
 fetchBalance()
 
@@ -138,34 +149,34 @@ async function sendSms() {
         ? `${campaignTitle.value.trim()} [${group.label}]`
         : campaignTitle.value.trim()
 
-      const resp = await smsApi.post('/sms/send', {
+      const resp = await smsRequest('POST', '/sms/send', {
         title,
         message:    group.message,
         recipients: group.recipients,
       })
 
       campaigns.value.push({
-        id:        resp.data.campaign_id,
+        id:        resp.campaign_id,
         label:     group.label,
-        total:     resp.data.total,
+        total:     resp.total,
         delivered: 0,
         failed:    0,
-        pending:   resp.data.total,
+        pending:   resp.total,
         status:    'sent',
         logs:      [],
-        shootId:   resp.data.shoot_id,
+        shootId:   resp.shoot_id,
       })
     }
     startPolling()
   } catch (err) {
-    const status = err?.response?.status
-    const d      = err?.response?.data
+    const status = err?.status
+    const d      = err?.data
     console.error('[SMS Send Error]', status, d, err?.message)
     if (d?.errors) {
       const first = Object.values(d.errors)[0]
       sendError.value = Array.isArray(first) ? first[0] : String(first)
-    } else if (d?.message) {
-      sendError.value = d.message
+    } else if (err?.message && !err.message.startsWith('HTTP')) {
+      sendError.value = err.message
     } else if (status === 401) {
       sendError.value = 'Session expired. Please log in again.'
     } else if (status) {
@@ -191,15 +202,15 @@ async function pollAll() {
     allDone = false
     try {
       const [sr, lr] = await Promise.all([
-        smsApi.get(`/sms/campaigns/${c.id}/status`),
-        smsApi.get(`/sms/campaigns/${c.id}/logs`),
+        smsRequest('GET', `/sms/campaigns/${c.id}/status`),
+        smsRequest('GET', `/sms/campaigns/${c.id}/logs`),
       ])
       Object.assign(c, {
-        delivered: sr.data.delivered,
-        failed:    sr.data.failed,
-        pending:   sr.data.pending,
-        status:    sr.data.status,
-        logs:      lr.data.logs?.data ?? [],
+        delivered: sr.delivered,
+        failed:    sr.failed,
+        pending:   sr.pending,
+        status:    sr.status,
+        logs:      lr.logs?.data ?? [],
       })
     } catch (_) {}
   }
@@ -217,7 +228,7 @@ const loadingHistory = ref(false)
 
 async function loadHistory() {
   loadingHistory.value = true
-  try { historyList.value = ((await smsApi.get('/sms/campaigns')).data?.data) ?? [] } catch (_) {}
+  try { historyList.value = ((await smsRequest('GET', '/sms/campaigns'))?.data) ?? [] } catch (_) {}
   finally { loadingHistory.value = false }
 }
 
@@ -260,9 +271,9 @@ onUnmounted(stopPolling)
       </div>
 
       <div class="top-bar-right">
-        <div v-if="balance?.data" class="balance-chip">
+        <div v-if="balance" class="balance-chip">
           <CIcon icon="cil-credit-card" />
-          Balance: <strong>{{ balance.data.balance ?? balance.data.credits ?? '—' }}</strong> SMS
+          Balance: <strong>{{ balance.balance ?? balance.credits ?? balance.data?.balance ?? '—' }}</strong> SMS
         </div>
       </div>
     </div>
