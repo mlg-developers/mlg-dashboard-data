@@ -376,13 +376,17 @@ onBeforeUnmount(() => {
       </div>
       <div v-else class="tv-legend"></div>
 
-      <div class="tv-dots">
+      <!-- a few screens: one dot each; many screens (every doctor card): a slim progress bar instead -->
+      <div v-if="slides.length <= 15" class="tv-dots">
         <span
           v-for="(s, i) in slides"
           :key="s.key"
           class="tv-dot"
           :class="{ 'is-current': i === current }"
         />
+      </div>
+      <div v-else class="tv-progress" aria-hidden="true">
+        <span :style="{ width: `${((current + 1) / slides.length) * 100}%` }"></span>
       </div>
 
       <div class="tv-page">
@@ -799,6 +803,22 @@ h1 {
   color: var(--tv-muted);
   font-size: 2.2em;
   text-align: center;
+}
+
+.tv-progress {
+  width: 22em;
+  max-width: 40vw;
+  height: 0.45em;
+  border-radius: 999px;
+  background: var(--tv-line);
+  overflow: hidden;
+}
+.tv-progress span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--tv-red);
+  transition: width 0.4s ease;
 }
 
 .tv-dots {

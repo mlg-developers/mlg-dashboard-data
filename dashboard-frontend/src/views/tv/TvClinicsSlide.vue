@@ -20,6 +20,15 @@ const lines = computed(() =>
   ),
 )
 
+// Long single words (GASTROENTEROLOGY, OTORHINOLARYNGOLOGY) get a smaller size so they fit on one line
+// instead of being cut in the middle of the word.
+const nameSize = (name) => {
+  const longest = Math.max(...name.split(/\s+/).map((word) => word.length))
+  if (longest >= 17) return 'tv-name--xlong'
+  if (longest >= 12 || name.length > 22) return 'tv-name--long'
+  return ''
+}
+
 // null means the patient data is unavailable (different from zero waiting)
 const count = (value) => (value === null || value === undefined ? '—' : value)
 </script>
@@ -30,7 +39,7 @@ const count = (value) => (value === null || value === undefined ? '—' : value)
       <article v-for="clinic in line" :key="clinic.code" class="tv-card">
         <div class="tv-inner">
           <div class="tv-info">
-            <h3 class="tv-name" :class="{ 'tv-name--long': clinic.name.length > 22 }">{{ clinic.name }}</h3>
+            <h3 class="tv-name" :class="nameSize(clinic.name)">{{ clinic.name }}</h3>
           </div>
 
           <div class="tv-total">
@@ -105,7 +114,10 @@ const count = (value) => (value === null || value === undefined ? '—' : value)
   overflow: hidden;
 }
 .tv-name--long {
-  font-size: 1.25em;
+  font-size: 1.2em;
+}
+.tv-name--xlong {
+  font-size: 1em;
 }
 .tv-total {
   display: flex;
