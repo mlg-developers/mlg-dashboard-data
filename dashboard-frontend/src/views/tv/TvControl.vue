@@ -263,6 +263,7 @@ const waitingLabel = (n) => (n === null || n === undefined ? '—' : n)
 
 <template>
   <div class="ctl">
+    <div class="ctl-sticky">
     <header class="ctl-bar">
       <div class="ctl-brand">
         <span class="ctl-logo"><img :src="logo" alt="Muhimbili National Hospital" /></span>
@@ -278,24 +279,7 @@ const waitingLabel = (n) => (n === null || n === undefined ? '—' : n)
       </div>
       </div>
     </header>
-
-    <form v-if="!token" class="ctl-login" @submit.prevent="signIn">
-      <h2>{{ t('ctlLoginTitle') }}</h2>
-      <p class="ctl-muted">{{ t('ctlLoginHint') }}</p>
-      <label>
-        <span>{{ t('ctlEmail') }}</span>
-        <input v-model="loginEmail" type="email" autocomplete="username" required />
-      </label>
-      <label>
-        <span>{{ t('ctlPassword') }}</span>
-        <input v-model="loginPassword" type="password" autocomplete="current-password" required />
-      </label>
-      <p v-if="loginError" class="ctl-error" role="alert">{{ loginError }}</p>
-      <button type="submit" class="primary" :disabled="loggingIn">{{ loggingIn ? t('ctlLoading') : t('ctlSignIn') }}</button>
-    </form>
-
-    <template v-if="token">
-    <section class="ctl-filters">
+    <section v-if="token" class="ctl-filters">
       <label>
         <span>{{ t('ctlDate') }}</span>
         <span class="ctl-date">
@@ -331,8 +315,25 @@ const waitingLabel = (n) => (n === null || n === undefined ? '—' : n)
       </label>
       <button type="button" class="ctl-reload" :disabled="loading" @click="load">↻ {{ t('ctlReload') }}</button>
     </section>
+    </div>
 
-    <p class="ctl-note">{{ t('ctlNote') }}</p>
+    <form v-if="!token" class="ctl-login" @submit.prevent="signIn">
+      <h2>{{ t('ctlLoginTitle') }}</h2>
+      <p class="ctl-muted">{{ t('ctlLoginHint') }}</p>
+      <label>
+        <span>{{ t('ctlEmail') }}</span>
+        <input v-model="loginEmail" type="email" autocomplete="username" required />
+      </label>
+      <label>
+        <span>{{ t('ctlPassword') }}</span>
+        <input v-model="loginPassword" type="password" autocomplete="current-password" required />
+      </label>
+      <p v-if="loginError" class="ctl-error" role="alert">{{ loginError }}</p>
+      <button type="submit" class="primary" :disabled="loggingIn">{{ loggingIn ? t('ctlLoading') : t('ctlSignIn') }}</button>
+    </form>
+
+    <template v-if="token">
+
     <p v-if="isFuture" class="ctl-note">{{ t('ctlFutureNote') }}</p>
     <p v-if="error" class="ctl-error" role="alert">{{ error }}</p>
     <p v-if="forbidden" class="ctl-error" role="alert">{{ t('ctlNoAccess') }}</p>
@@ -498,7 +499,7 @@ const waitingLabel = (n) => (n === null || n === undefined ? '—' : n)
   font-size: clamp(15px, 0.85vw, 20px); /* a little larger on big screens */
 }
 .ctl-bar {
-  margin: 0 calc(var(--gutter) * -1) 1rem;
+  margin: 0 calc(var(--gutter) * -1) 0.7rem;
   padding: 0.9rem var(--gutter);
   display: flex;
   align-items: center;
@@ -867,6 +868,17 @@ button {
 }
 
 
+/* the header and the filters stay at the top while the list scrolls underneath */
+.ctl-sticky {
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  margin: 0 calc(var(--gutter) * -1);
+  padding: 0 var(--gutter) 0.7rem;
+  background: #e9ebfa;
+  box-shadow: 0 6px 14px rgba(36, 36, 132, 0.12);
+}
+
 /* ---------- look & feel: Muhimbili colours, cards, full-width grid ---------- */
 .ctl {
   background: linear-gradient(180deg, #e9ebfa 0, var(--bg) 360px);
@@ -892,8 +904,9 @@ button {
 }
 
 .ctl-filters {
-  margin-top: 1.2rem;
-  padding: 1.1rem 1.3rem;
+  margin-top: 0;
+  gap: 0.6rem 0.8rem;
+  padding: 0.65rem 1rem;
   border: 1px solid var(--line);
   border-radius: 14px;
   background: #fff;
@@ -1047,6 +1060,11 @@ select:focus {
 }
 
 @media (max-width: 720px) {
+  /* phones: the filters are too tall to pin, so everything scrolls normally */
+  .ctl-sticky {
+    position: static;
+    box-shadow: none;
+  }
   .ctl-clinic__head {
     grid-template-columns: minmax(0, 1fr) auto;
   }
