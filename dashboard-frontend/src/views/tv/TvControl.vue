@@ -1,5 +1,6 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
+import logo from '@/assets/images/muhilogo.jpg'
 import { initLang, useTvI18n } from './i18n'
 
 // Accountant page for the TV dashboards (login required). Only counts are shown: patients are never
@@ -241,6 +242,21 @@ const targets = (clinic) => clinic.doctors.filter((d) => moving.value && d.code 
 const targetsShown = (clinic) => targets(clinic).filter((d) => d.visible)
 const targetsOther = (clinic) => targets(clinic).filter((d) => !d.visible)
 
+// "MLG GENERAL OPD" -> "GENERAL OPD", "MLG-INTERNAL MEDICINE DEPARTMENT" -> "INTERNAL MEDICINE"
+const clinicName = (name) => String(name || '').replace(/^MLG\s+/i, '')
+const deptLabel = (name) =>
+  String(name || '')
+    .replace(/^MLG\s*-\s*/i, '')
+    .replace(/\s+DEPARTMENT$/i, '')
+
+// the four tiles above the list (for the clinics that pass the filters)
+const summary = computed(() => ({
+  clinics: visible.value.length,
+  waiting: visible.value.reduce((n, row) => n + (row.clinic.waiting || 0), 0),
+  off: visible.value.reduce((n, row) => n + row.clinic.doctors.filter((d) => d.off).length, 0),
+  moves: visible.value.reduce((n, row) => n + (row.clinic.moves ? row.clinic.moves.length : 0), 0),
+}))
+
 const isFuture = computed(() => date.value > hospitalToday())
 const waitingLabel = (n) => (n === null || n === undefined ? '—' : n)
 </script>
@@ -249,6 +265,7 @@ const waitingLabel = (n) => (n === null || n === undefined ? '—' : n)
   <div class="ctl">
     <header class="ctl-bar">
       <div class="ctl-brand">
+        <span class="ctl-logo"><img :src="logo" alt="Muhimbili National Hospital" /></span>
         <router-link :to="{ name: 'TvDisplay' }" class="ctl-back">← {{ t('ctlBack') }}</router-link>
         <h1>{{ t('ctlTitle') }}</h1>
       </div>
@@ -322,15 +339,40 @@ const waitingLabel = (n) => (n === null || n === undefined ? '—' : n)
     <p v-if="loading" class="ctl-muted">{{ t('ctlLoading') }}</p>
 
     <template v-else-if="payload">
-      <p class="ctl-count">{{ visible.length }} / {{ clinics.length }} {{ t('ctlClinics') }}</p>
+      <section class="ctl-stats">
+        <div class="ctl-stat is-navy">
+          <b>{{ summary.clinics }}<small> / {{ clinics.length }}</small></b>
+          <span>{{ t('ctlClinics') }}</span>
+        </div>
+        <div class="ctl-stat is-orange">
+          <b>{{ summary.waiting }}</b>
+          <span>{{ t('ctlStatWaiting') }}</span>
+        </div>
+        <div class="ctl-stat is-red">
+          <b>{{ summary.off }}</b>
+          <span>{{ t('ctlStatOff') }}</span>
+        </div>
+        <div class="ctl-stat is-green">
+          <b>{{ summary.moves }}</b>
+          <span>{{ t('ctlStatMoves') }}</span>
+        </div>
+      </section>
+
       <p v-if="!visible.length" class="ctl-muted">{{ t('ctlNoResults') }}</p>
 
-      <article v-for="row in visible" :key="row.clinic.code" class="ctl-clinic">
+      <div class="ctl-grid">
+      <article v-for="row in visible" :key="row.clinic.code" class="ctl-clinic" :class="{ 'is-open': isOpen(row.clinic.code) }">
         <button type="button" class="ctl-clinic__head" @click="toggleOpen(row.clinic.code)">
-          <span class="ctl-clinic__name">{{ row.clinic.name }}</span>
-          <span class="ctl-clinic__meta">{{ row.clinic.department }} · {{ floorLabel(row.clinic) }}</span>
-          <span class="ctl-clinic__count">
-            <b>{{ waitingLabel(row.clinic.waiting) }}</b> {{ t('ctlWaitingIn') }}
+          <span class="ctl-clinic__title">
+            <span class="ctl-clinic__name">{{ clinicName(row.clinic.name) }}</span>
+            <span class="ctl-chips">
+              <span class="ctl-chip">{{ deptLabel(row.clinic.department) }}</span>
+              <span v-if="floorLabel(row.clinic)" class="ctl-chip is-floor">{{ floorLabel(row.clinic) }}</span>
+            </span>
+          </span>
+          <span class="ctl-badge">
+            <b>{{ waitingLabel(row.clinic.waiting) }}</b>
+            <small>{{ t('ctlWaitingIn') }}</small>
           </span>
           <span class="ctl-chevron">{{ isOpen(row.clinic.code) ? '▲' : '▼' }}</span>
         </button>
@@ -350,9 +392,9 @@ const waitingLabel = (n) => (n === null || n === undefined ? '—' : n)
             <thead>
               <tr>
                 <th>{{ t('colDoctor') }}</th>
-                <th class="num">{{ t('colBooked') }}</th>
-                <th class="num">{{ t('colWaiting') }}</th>
-                <th class="num">{{ t('colSeen') }}</th>
+                <th class="num is-billed">{{ t('colBooked') }}</th>
+                <th class="num is-waiting">{{ t('colWaiting') }}</th>
+                <th class="num is-seen">{{ t('colSeen') }}</th>
                 <th>{{ t('ctlOnDuty') }}</th>
                 <th></th>
               </tr>
@@ -426,6 +468,7 @@ const waitingLabel = (n) => (n === null || n === undefined ? '—' : n)
           </table>
         </div>
       </article>
+      </div>
     </template>
 
     </template>
@@ -821,6 +864,186 @@ button {
   color: #fff;
   font-weight: 700;
   box-shadow: 0 6px 20px rgba(0, 0, 0, 0.25);
+}
+
+
+/* ---------- look & feel: Muhimbili colours, cards, full-width grid ---------- */
+.ctl {
+  background: linear-gradient(180deg, #e9ebfa 0, var(--bg) 360px);
+}
+.ctl-bar {
+  box-shadow: 0 4px 16px rgba(36, 36, 132, 0.25);
+}
+.ctl-brand {
+  align-items: center;
+  gap: 0.9rem;
+}
+.ctl-logo {
+  display: grid;
+  place-items: center;
+  padding: 0.25rem;
+  border-radius: 10px;
+  background: #fff;
+}
+.ctl-logo img {
+  display: block;
+  height: 2.4rem;
+  width: auto;
+}
+
+.ctl-filters {
+  margin-top: 1.2rem;
+  padding: 1.1rem 1.3rem;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: 0 2px 8px rgba(36, 36, 132, 0.07);
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+}
+input:focus,
+select:focus {
+  outline: 2px solid rgba(36, 36, 132, 0.35);
+  outline-offset: 1px;
+}
+.ctl-reload {
+  align-self: end;
+}
+
+.ctl-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 0.9rem;
+  margin-top: 1.1rem;
+}
+.ctl-stat {
+  display: grid;
+  gap: 0.1rem;
+  padding: 0.9rem 1.1rem;
+  border-radius: 14px;
+  border-left: 6px solid var(--navy);
+  background: #fff;
+  box-shadow: 0 2px 8px rgba(36, 36, 132, 0.07);
+}
+.ctl-stat b {
+  font-size: 2rem;
+  line-height: 1.1;
+  color: var(--navy);
+  font-variant-numeric: tabular-nums;
+}
+.ctl-stat b small {
+  color: var(--muted);
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+.ctl-stat span {
+  color: var(--muted);
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.ctl-stat.is-orange {
+  border-left-color: #f59e0b;
+}
+.ctl-stat.is-red {
+  border-left-color: var(--red);
+}
+.ctl-stat.is-green {
+  border-left-color: #1fa971;
+}
+
+.ctl-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 540px), 1fr));
+  gap: 0.9rem;
+  margin-top: 1.1rem;
+  align-items: start;
+}
+.ctl-clinic {
+  margin: 0;
+  border-radius: 14px;
+  box-shadow: 0 2px 8px rgba(36, 36, 132, 0.07);
+  transition: box-shadow 0.15s, transform 0.15s;
+}
+.ctl-clinic:hover {
+  box-shadow: 0 8px 22px rgba(36, 36, 132, 0.16);
+  transform: translateY(-1px);
+}
+.ctl-clinic.is-open {
+  grid-column: 1 / -1;
+}
+.ctl-clinic__head {
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  padding: 0.9rem 1.1rem;
+}
+.ctl-clinic__title {
+  display: grid;
+  gap: 0.4rem;
+  min-width: 0;
+}
+.ctl-clinic__name {
+  font-size: 1.1rem;
+  letter-spacing: 0.01em;
+}
+.ctl-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+.ctl-chip {
+  padding: 0.1rem 0.6rem;
+  border-radius: 999px;
+  background: #eef0ff;
+  color: var(--navy);
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+.ctl-chip.is-floor {
+  background: #fff4d6;
+  color: #8a5a00;
+}
+.ctl-badge {
+  display: grid;
+  justify-items: center;
+  min-width: 5.2rem;
+  padding: 0.4rem 0.8rem;
+  border-radius: 12px;
+  background: #fce40c;
+  color: var(--navy);
+  line-height: 1.1;
+}
+.ctl-badge b {
+  font-size: 1.7rem;
+  font-variant-numeric: tabular-nums;
+}
+.ctl-badge small {
+  font-size: 0.66rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.ctl-clinic__body {
+  padding-top: 0.4rem;
+  border-top: 1px solid var(--line);
+}
+.ctl-table tbody tr:nth-child(odd):not(.ctl-moverow) {
+  background: #fafbff;
+}
+.ctl-table tbody tr:hover:not(.ctl-moverow) {
+  background: #f0f2ff;
+}
+.ctl-table th.is-billed {
+  color: #2563eb;
+}
+.ctl-table th.is-waiting {
+  color: #d97706;
+}
+.ctl-table th.is-seen {
+  color: #15803d;
+}
+.ctl-doctor {
+  font-weight: 700;
 }
 
 @media (max-width: 720px) {
