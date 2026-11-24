@@ -446,21 +446,17 @@ const waitingLabel = (n) => (n === null || n === undefined ? '—' : n)
   inset: 0;
   z-index: 1000;
   overflow-y: auto;
-  padding: 0 max(16px, env(safe-area-inset-right, 0px)) 4rem max(16px, env(safe-area-inset-left, 0px));
+  /* the page uses the whole screen width; only the side gutter grows with the screen */
+  --gutter: clamp(16px, 2.5vw, 56px);
+  padding: 0 max(var(--gutter), env(safe-area-inset-right, 0px)) 4rem max(var(--gutter), env(safe-area-inset-left, 0px));
   background: var(--bg);
   color: var(--ink);
   font-family: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-  font-size: 15px;
-}
-.ctl > * {
-  max-width: 1100px;
-  margin-left: auto;
-  margin-right: auto;
+  font-size: clamp(15px, 0.85vw, 20px); /* a little larger on big screens */
 }
 .ctl-bar {
-  max-width: none;
-  margin: 0 -16px 1rem;
-  padding: 0.9rem 16px;
+  margin: 0 calc(var(--gutter) * -1) 1rem;
+  padding: 0.9rem var(--gutter);
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -506,8 +502,8 @@ const waitingLabel = (n) => (n === null || n === undefined ? '—' : n)
 .ctl-login {
   display: grid;
   gap: 0.9rem;
-  max-width: 380px;
-  margin-top: 3rem;
+  width: min(100%, 420px);
+  margin: 3rem auto 0;
   padding: 1.5rem;
   border: 1px solid var(--line);
   border-top: 5px solid var(--red);
