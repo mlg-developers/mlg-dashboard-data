@@ -7,6 +7,8 @@ use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Api\V1\AuthController;
 use App\Http\Controllers\Api\V1\ReportsController;
 use App\Http\Controllers\Api\V1\SmsController;
+use App\Http\Controllers\Api\V1\TvControlController;
+use App\Http\Controllers\Api\V1\TvDashboardController;
 
 /*
 |--------------------------------------------------------------------------
@@ -35,6 +37,9 @@ Route::prefix('dashboard')->controller(DashboardController::class)->group(functi
     Route::get('/duplicated-data', 'getDuplicateVisits');
     Route::get('/top-diseases', 'getTopDiseases');
 });
+
+// Public TV display data (aggregated waiting-patient counts only, no patient records)
+Route::get('/tv/clinics-today', [TvDashboardController::class, 'clinicsToday'])->middleware('throttle:120,1');
 
 // SMS Delivery Callback (called by Kilakona — no auth)
 Route::post('/sms/delivery-callback/{campaignId}', [SmsController::class, 'deliveryCallback']);
@@ -66,6 +71,13 @@ Route::middleware('auth:sanctum')->group(function () {
     // Authenticated exports
     Route::prefix('dashboard')->controller(DashboardController::class)->group(function () {
         Route::get('/pending-patients/export', 'exportPendingPatients');
+    });
+
+    // TV dashboard controls for accountants (roles checked in the controller)
+    Route::prefix('tv/control')->controller(TvControlController::class)->group(function () {
+        Route::get('/overview', 'overview');
+        Route::put('/doctor', 'doctor');
+        Route::put('/move', 'move');
     });
 
     // SMS Management Routes

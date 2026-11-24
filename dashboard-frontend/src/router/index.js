@@ -45,6 +45,31 @@ const routes = [
       },
     ],
   },
+  // Public TV displays (no login, no layout)
+  {
+    path: '/tv',
+    name: 'TvDisplay',
+    component: () => import('@/views/tv/TvRotator.vue'),
+    props: { mode: 'all' },
+  },
+  {
+    path: '/tv/clinics',
+    name: 'TvClinics',
+    component: () => import('@/views/tv/TvRotator.vue'),
+    props: { mode: 'clinics' },
+  },
+  {
+    path: '/tv/doctors',
+    name: 'TvDoctors',
+    component: () => import('@/views/tv/TvRotator.vue'),
+    props: { mode: 'doctors' },
+  },
+  // Accountant controls for the TV displays: shows its own login form and never opens without it
+  {
+    path: '/tv/control',
+    name: 'TvControl',
+    component: () => import('@/views/tv/TvControl.vue'),
+  },
   {
     path: '/login',
     name: 'Login',
@@ -80,7 +105,8 @@ const router = createRouter({
 router.beforeEach((to, from, next) => {
   const token = localStorage.getItem('mnh_token')
   const user = JSON.parse(localStorage.getItem('mnh_user') || 'null')
-  const publicRoutes = ['Login', 'PublicDashboard']
+  // TvControl is listed because it asks for its own login (separate from the dashboard session)
+  const publicRoutes = ['Login', 'PublicDashboard', 'TvDisplay', 'TvClinics', 'TvDoctors', 'TvControl']
   const adminRoles = ['ED', 'DED', 'DICT']
 
   // Check if route requires authentication
