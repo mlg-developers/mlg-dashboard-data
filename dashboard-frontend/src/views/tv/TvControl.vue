@@ -389,19 +389,19 @@ const waitingLabel = (n) => (n === null || n === undefined ? '—' : n)
         <span>{{ t('ctlShowAll') }}</span>
       </label>
       <button type="button" class="ctl-reload" :disabled="loading" @click="load">↻ {{ t('ctlReload') }}</button>
+      <nav v-if="token && payload" class="ctl-views" :aria-label="t('ctlViews')">
+        <span class="ctl-views__label">{{ t('ctlViews') }}</span>
+        <button type="button" class="vw is-off" :class="{ 'is-active': view === 'off' }" @click="setView('off')">
+          {{ t('ctlViewOff') }} <b>{{ counts.off }}</b>
+        </button>
+        <button type="button" class="vw is-frozen" :class="{ 'is-active': view === 'frozen' }" @click="setView('frozen')">
+          {{ t('ctlViewFrozen') }} <b>{{ counts.frozen }}</b>
+        </button>
+        <button type="button" class="vw is-migrated" :class="{ 'is-active': view === 'migrated' }" @click="setView('migrated')">
+          {{ t('ctlViewMigrated') }} <b>{{ counts.migrated }}</b>
+        </button>
+      </nav>
     </section>
-    <nav v-if="token && payload" class="ctl-views" :aria-label="t('ctlViews')">
-      <span class="ctl-views__label">{{ t('ctlViews') }}</span>
-      <button type="button" class="vw is-off" :class="{ 'is-active': view === 'off' }" @click="setView('off')">
-        {{ t('ctlViewOff') }} <b>{{ counts.off }}</b>
-      </button>
-      <button type="button" class="vw is-frozen" :class="{ 'is-active': view === 'frozen' }" @click="setView('frozen')">
-        {{ t('ctlViewFrozen') }} <b>{{ counts.frozen }}</b>
-      </button>
-      <button type="button" class="vw is-migrated" :class="{ 'is-active': view === 'migrated' }" @click="setView('migrated')">
-        {{ t('ctlViewMigrated') }} <b>{{ counts.migrated }}</b>
-      </button>
-    </nav>
     </div>
 
     <form v-if="!token" class="ctl-login" @submit.prevent="signIn">
@@ -1424,6 +1424,145 @@ select:focus {
     grid-column: 1 / -1;
     white-space: normal;
   }
+}
+
+/* ---------- filters: one compact row, every field the same height ---------- */
+.ctl-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.5rem 0.6rem;
+  padding: 0.5rem 0.8rem;
+  font-size: 0.78rem;
+}
+.ctl-filters label {
+  flex: 1 1 130px;
+  gap: 0.15rem;
+}
+.ctl-filters label > span:first-child {
+  font-size: 0.62rem;
+}
+.ctl-filters input,
+.ctl-filters select,
+.ctl-filters .ctl-date button,
+.ctl-filters .ctl-reload {
+  box-sizing: border-box;
+  height: 2rem;
+  padding: 0 0.5rem;
+  font-size: 0.78rem;
+  line-height: 1;
+}
+.ctl-filters .ctl-date {
+  gap: 0.3rem;
+}
+.ctl-filters .ctl-date button {
+  padding: 0 0.6rem;
+}
+.ctl-filters .ctl-reload {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+.ctl-filters .ctl-check {
+  flex: 0 0 auto;
+  align-self: flex-end;
+  height: 2rem;
+  gap: 0.35rem;
+}
+.ctl-filters .ctl-check span {
+  font-size: 0.78rem !important;
+  white-space: nowrap;
+}
+.ctl-filters .ctl-views {
+  flex: 0 0 auto;
+  flex-wrap: nowrap;
+  align-self: flex-end;
+  gap: 0.3rem;
+  padding: 0;
+}
+.ctl-filters .ctl-views__label {
+  display: none;
+}
+.ctl-filters .vw {
+  height: 2rem;
+  padding: 0 0.6rem;
+  font-size: 0.74rem;
+  white-space: nowrap;
+}
+.ctl-filters .vw b {
+  font-size: 0.68rem;
+}
+@media (min-width: 1500px) {
+  .ctl-filters {
+    flex-wrap: nowrap;
+  }
+}
+
+/* ---------- normal-sized text for the tiles and the clinic cards ---------- */
+.ctl {
+  font-size: clamp(13px, 0.7vw, 15px);
+}
+.ctl-bar h1 {
+  font-size: 1.1rem;
+}
+.ctl-logo img {
+  height: 2rem;
+}
+.ctl-bar {
+  padding: 0.6rem var(--gutter);
+}
+.ctl-stats {
+  gap: 0.6rem;
+  margin-top: 0.8rem;
+}
+.ctl-stat {
+  padding: 0.5rem 0.9rem;
+  border-radius: 12px;
+  border-left-width: 5px;
+}
+.ctl-stat b {
+  font-size: 1.35rem;
+}
+.ctl-stat b small {
+  font-size: 0.8rem;
+}
+.ctl-stat span {
+  font-size: 0.68rem;
+}
+.ctl-grid {
+  gap: 0.6rem;
+  margin-top: 0.8rem;
+}
+.ctl-clinic {
+  border-radius: 12px;
+  border-left-width: 4px;
+}
+.ctl-clinic__head {
+  padding: 0.5rem 0.8rem;
+  gap: 0.6rem;
+}
+.ctl-clinic__title {
+  gap: 0.25rem;
+}
+.ctl-clinic__name {
+  font-size: 0.92rem;
+}
+.ctl-chip {
+  padding: 0.05rem 0.5rem;
+  font-size: 0.68rem;
+}
+.ctl-badge {
+  min-width: 3.6rem;
+  padding: 0.25rem 0.55rem;
+  border-radius: 10px;
+}
+.ctl-badge b {
+  font-size: 1.15rem;
+}
+.ctl-badge small {
+  font-size: 0.56rem;
+}
+.ctl-chevron {
+  font-size: 0.65rem;
 }
 
 @media (max-width: 720px) {
