@@ -255,4 +255,106 @@ class TvDashboardServiceTest extends TestCase
         $this->assertSame(1, $stats['204']['waiting']);
         $this->assertSame(1, $stats['204']['seen']);
     }
+
+    private function clinicDoctors(string $clinicName, array $assigned, ?array $stats = null): array
+    {
+        $m = new \ReflectionMethod(TvDashboardService::class, 'buildClinic');
+        $m->setAccessible(true);
+        $row = ['clinicCode' => '9', 'clinicName' => $clinicName, 'floorCode' => '001'];
+        $clinic = $m->invoke(new TvDashboardService(), $row, $assigned, $stats, 'ok');
+
+        return array_column($clinic['doctors'], 'code');
+    }
+
+    private function listed(): array
+    {
+        $d = fn ($code, $q) => ['code' => $code, 'name' => $code, 'qualification' => $q, 'assigned' => true];
+
+        return [$d('A', 'SPECIALIST'), $d('B', 'Super Specialist'), $d('C', 'SUPERSPECIALIST'), $d('D', 'specialist'),
+            $d('E', 'MD'), $d('F', 'MMED'), $d('G', 'MEDICAL OFFICER'), $d('H', null), $d('I', 'PHYSIOTHERAPIST')];
+    }
+
+    public function test_only_specialists_and_super_specialists_are_shown_outside_physiotherapy(): void
+    {
+        $codes = $this->clinicDoctors('MLG CARDIOLOGY', $this->listed());
+        sort($codes);
+        $this->assertSame(['A', 'B', 'C', 'D'], $codes);
+    }
+
+    public function test_physiotherapy_keeps_every_doctor(): void
+    {
+        $this->assertCount(9, $this->clinicDoctors('MLG PHYSIOTHERAPY', $this->listed()));
+        $this->assertCount(9, $this->clinicDoctors('MLG PHYSIOTHERAPY IPPM', $this->listed()));
+    }
+
+    public function test_non_specialist_with_patients_is_hidden_but_unlisted_doctor_is_kept(): void
+    {
+        $stats = ['waiting' => 3, 'seen' => 0, 'doctors' => [
+            'E' => ['name' => 'Md Doc', 'waiting' => 2, 'seen' => 0],
+            'Z' => ['name' => 'Unlisted', 'waiting' => 1, 'seen' => 0],
+        ]];
+        $codes = $this->clinicDoctors('MLG CARDIOLOGY', $this->listed(), $stats);
+        $this->assertNotContains('E', $codes);
+        $this->assertContains('Z', $codes);
+    }
+
+    private function twoClinics(): array
+    {
+        $doc = fn ($c, $w) => ['code' => $c, 'name' => "Doc $c", 'qualification' => 'SPECIALIST', 'assigned' => true, 'booked' => $w, 'waiting' => $w, 'seen' => 0];
+
+        return [
+            ['code' => '1', 'name' => 'CLINIC ONE', 'waiting' => 3, 'seen' => 0, 'booked' => 3, 'doctors' => [$doc('A', 2), $doc('B', 1)]],
+            ['code' => '2', 'name' => 'CLINIC TWO', 'waiting' => 0, 'seen' => 0, 'booked' => 0, 'doctors' => [$doc('C', 0)]],
+        ];
+    }
+
+    private function shown(array $clinic): array
+    {
+        return array_values(array_map(fn ($d) => $d['code'], array_filter($clinic['doctors'], fn ($d) => $d['visible'])));
+    }
+
+    public function test_frozen_doctor_is_hidden_and_stays_hidden_even_if_switched_on(): void
+    {
+        $svc = new TvDashboardService();
+        $clinics = $svc->applyRules($this->twoClinics(), ['1|A' => ['rule' => 'frozen', 'target' => null]]);
+        $out = $svc->applyOverrides($clinics, ['1|A' => 'on'], []);
+
+        $this->assertSame(['B'], $this->shown($out[0]));
+        $frozen = array_values(array_filter($out[0]['doctors'], fn ($d) => $d['code'] === 'A'))[0];
+        $this->assertSame('frozen', $frozen['rule']);
+    }
+
+    public function test_migrated_doctor_leaves_the_old_clinic_and_appears_in_the_new_one(): void
+    {
+        $svc = new TvDashboardService();
+        $clinics = $svc->applyRules($this->twoClinics(), ['1|B' => ['rule' => 'migrated', 'target' => '2']]);
+        $out = $svc->applyOverrides($clinics, [], []);
+
+        $this->assertSame(['A'], $this->shown($out[0]));
+        $this->assertEqualsCanonicalizing(['C', 'B'], $this->shown($out[1]));
+        $b = array_values(array_filter($out[1]['doctors'], fn ($d) => $d['code'] === 'B'))[0];
+        $this->assertSame('1', $b['migrated_from']);
+    }
+
+    public function test_migrated_doctor_is_shown_in_new_clinic_even_in_active_mode_and_target_off_switch_works(): void
+    {
+        config(['tv.doctor_visibility' => 'active']);
+        $svc = new TvDashboardService();
+        $clinics = $svc->applyRules($this->twoClinics(), ['1|B' => ['rule' => 'migrated', 'target' => '2']]);
+        $out = $svc->applyOverrides($clinics, ['2|B' => 'off'], []);
+        $b = array_values(array_filter($out[1]['doctors'], fn ($d) => $d['code'] === 'B'))[0];
+        $this->assertTrue($b['off']);
+
+        $out = $svc->applyOverrides($clinics, [], []);
+        $this->assertContains('B', $this->shown($out[1]));
+    }
+
+    public function test_migration_to_a_clinic_not_running_today_just_hides_the_doctor(): void
+    {
+        $svc = new TvDashboardService();
+        $clinics = $svc->applyRules($this->twoClinics(), ['1|A' => ['rule' => 'migrated', 'target' => '99']]);
+        $out = $svc->applyOverrides($clinics, [], []);
+        $this->assertSame(['B'], $this->shown($out[0]));
+        $this->assertCount(1, $out[1]['doctors']);
+    }
 }

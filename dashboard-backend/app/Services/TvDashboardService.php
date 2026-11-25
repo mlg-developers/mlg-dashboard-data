@@ -81,7 +81,10 @@ class TvDashboardService
             }
         }
 
-        // accountant controls: doctors switched off for the day and waiting patients moved between doctors
+        // accountant controls: permanent freeze / migration rules, doctors switched off for the day and
+        // waiting patients moved between doctors
+        [$rules, $rulesState] = $this->loadRules();
+        $clinics = $this->applyRules($clinics, $rules);
         [$off, $moves, $overridesState] = $this->loadOverrides($day->format('Y-m-d'));
         $clinics = $this->applyOverrides($clinics, $off, $moves);
 
@@ -101,12 +104,33 @@ class TvDashboardService
                 'doctors' => $schedule === null ? 'unavailable' : $doctorsState,
                 'patients' => $patientsState,
                 'overrides' => $overridesState,
+                'rules' => $rulesState,
             ],
             'floors' => $this->floorList($clinics),
             'floor_filter' => null,
             'totals' => $this->totals($clinics),
             'clinics' => $clinics,
         ];
+    }
+
+    /** "SPECIALIST", "Super Specialist", "SUPERSPECIALIST", "Medical Specialist"... (spacing/case/typos of the word). */
+    private function isSpecialist(?string $qualification): bool
+    {
+        $q = strtolower((string) preg_replace('/[^a-z]/i', '', (string) $qualification));
+
+        return $q !== '' && (str_contains($q, 'specialist') || str_contains($q, 'superspecialis'));
+    }
+
+    /** Clinics (by name) that keep every doctor, whatever the qualification: physiotherapy. */
+    private function isQualificationExempt(string $clinicName): bool
+    {
+        foreach (config('tv.all_qualification_clinics', ['PHYSIOTHERAPY']) as $needle) {
+            if ($needle !== '' && stripos($clinicName, $needle) !== false) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /** Every floor that has a clinic today, for the "which floor is this TV on" choice. */
@@ -117,6 +141,11 @@ class TvDashboardService
             if ($c['floor_code'] !== null) {
                 $floors[$c['floor_code']] = ['code' => $c['floor_code'], 'name' => $c['floor_name']];
             }
+        }
+        // when floors are named in TV_FLOOR_NAMES, those are the only floors a TV can be registered to
+        $named = array_keys((array) config('tv.floor_names', []));
+        if ($named !== []) {
+            $floors = array_intersect_key($floors, array_flip($named));
         }
         ksort($floors);
 
@@ -144,6 +173,23 @@ class TvDashboardService
     {
         $floorCode = trim((string) ($row['floorCode'] ?? ''));
         $known = $patientsState !== 'unavailable'; // zero is only a real zero when the data was available
+
+        // Only specialists and super specialists are shown (API 1 "doctQuali"), except in physiotherapy.
+        // A doctor's qualification comes from this clinic's API 1 list, so a doctor that has visits today
+        // but is listed there as e.g. "MD" is left out too. Doctors API 1 does not list are kept (unknown).
+        $specialistOnly = ! $this->isQualificationExempt((string) ($row['clinicName'] ?? ''));
+        $notSpecialist = [];
+        if ($specialistOnly) {
+            foreach ($assigned ?? [] as $d) {
+                if (! $this->isSpecialist($d['qualification'] ?? null)) {
+                    $notSpecialist[$d['code']] = true;
+                }
+            }
+            $assigned = array_values(array_filter($assigned ?? [], fn ($d) => ! isset($notSpecialist[$d['code']])));
+            if (is_array($stats) && isset($stats['doctors'])) {
+                $stats['doctors'] = array_diff_key($stats['doctors'], $notSpecialist);
+            }
+        }
 
         // doctors keyed by code: assigned ones first (API 1), then anyone who actually has visits today
         $doctors = [];
@@ -296,9 +342,10 @@ class TvDashboardService
                 $active = ((int) ($d['booked'] ?? 0)) > 0 || $d['moved_in'] > 0;
                 $clinic['doctors'][$i]['active'] = $active;
                 // what a doctor is without any switch: shown for every assigned doctor, or only with patients
-                $default = $active || config('tv.doctor_visibility') === 'assigned';
+                $default = $active || config('tv.doctor_visibility') === 'assigned' || ! empty($d['migrated_from']);
                 $clinic['doctors'][$i]['default_visible'] = $default;
-                $clinic['doctors'][$i]['visible'] = $default || $d['override'] === 'on';
+                // a frozen / migrated-away doctor stays out of the TVs whatever the daily switch says
+                $clinic['doctors'][$i]['visible'] = empty($d['rule']) && ($default || $d['override'] === 'on');
             }
 
             usort($clinic['doctors'], fn ($a, $b) => [(int) !$a['visible'], (int) $a['off'], $b['waiting'] ?? -1, $b['seen'] ?? -1, $a['name']]
@@ -307,6 +354,129 @@ class TvDashboardService
         unset($clinic);
 
         return $clinics;
+    }
+
+    /** @return array{0: array<string, array{rule:string, target:?string}>, 1: string} key "clinic|doctor" */
+    private function loadRules(): array
+    {
+        try {
+            $rules = [];
+            foreach (DB::table('tv_doctor_rules')->get(['clinic_code', 'doctor_code', 'rule', 'target_clinic_code']) as $row) {
+                $rules["{$row->clinic_code}|{$row->doctor_code}"] = ['rule' => $row->rule, 'target' => $row->target_clinic_code];
+            }
+
+            return [$rules, 'ok'];
+        } catch (\Throwable $e) {
+            Log::warning('[TvDashboard] doctor rules unavailable: '.$e->getMessage());
+
+            return [[], 'unavailable'];
+        }
+    }
+
+    /** Every stored rule (for the accountant's "frozen" and "migrated" lists), whatever the day. */
+    public function listRules(): array
+    {
+        try {
+            return DB::table('tv_doctor_rules')->orderBy('clinic_name')->orderBy('doctor_name')
+                ->get(['clinic_code', 'doctor_code', 'rule', 'target_clinic_code', 'doctor_name', 'clinic_name', 'target_clinic_name', 'updated_by', 'updated_at'])
+                ->map(fn ($r) => (array) $r)->all();
+        } catch (\Throwable) {
+            return [];
+        }
+    }
+
+    /**
+     * Permanent rules. Pure, so it can be tested.
+     *  - frozen:   the doctor is flagged `rule = frozen` in that clinic (hidden from the TVs);
+     *  - migrated: flagged `rule = migrated` (+ migrated_to) in the old clinic, and added to the new clinic
+     *              (flagged migrated_from) when it is scheduled that day and does not list him already.
+     *
+     * @param  array<string, array{rule:string, target:?string}>  $rules  "clinicCode|doctorCode" => rule
+     */
+    public function applyRules(array $clinics, array $rules): array
+    {
+        $index = [];
+        foreach ($clinics as $i => $c) {
+            $index[$c['code']] = $i;
+            foreach ($c['doctors'] as $j => $d) {
+                $clinics[$i]['doctors'][$j] += ['rule' => null, 'migrated_to' => null, 'migrated_to_name' => null, 'migrated_from' => null, 'migrated_from_name' => null];
+            }
+        }
+
+        foreach ($rules as $key => $r) {
+            [$clinicCode, $doctorCode] = array_pad(explode('|', (string) $key, 2), 2, '');
+            $ci = $index[$clinicCode] ?? null;
+            if ($ci === null) {
+                continue;
+            }
+            $di = null;
+            foreach ($clinics[$ci]['doctors'] as $j => $d) {
+                if ($d['code'] === $doctorCode) {
+                    $di = $j;
+                    break;
+                }
+            }
+            if ($di === null) {
+                continue;
+            }
+
+            if ($r['rule'] === 'frozen') {
+                $clinics[$ci]['doctors'][$di]['rule'] = 'frozen';
+            } elseif ($r['rule'] === 'migrated' && ! empty($r['target']) && $r['target'] !== $clinicCode) {
+                $ti = $index[$r['target']] ?? null;
+                $doctor = $clinics[$ci]['doctors'][$di];
+                $clinics[$ci]['doctors'][$di]['rule'] = 'migrated';
+                $clinics[$ci]['doctors'][$di]['migrated_to'] = $r['target'];
+                $clinics[$ci]['doctors'][$di]['migrated_to_name'] = $ti === null ? null : $clinics[$ti]['name'];
+                if ($ti === null) {
+                    continue; // the new clinic does not run today: he simply is not shown here
+                }
+                $found = null;
+                foreach ($clinics[$ti]['doctors'] as $j => $d) {
+                    if ($d['code'] === $doctorCode) {
+                        $found = $j;
+                        break;
+                    }
+                }
+                if ($found === null) {
+                    $known = $clinics[$ti]['booked'] !== null;
+                    $clinics[$ti]['doctors'][] = [
+                        'code' => $doctor['code'], 'name' => $doctor['name'], 'qualification' => $doctor['qualification'] ?? null,
+                        'assigned' => true, 'booked' => $known ? 0 : null, 'waiting' => $known ? 0 : null, 'seen' => $known ? 0 : null,
+                        'rule' => null, 'migrated_to' => null, 'migrated_to_name' => null,
+                        'migrated_from' => $clinicCode, 'migrated_from_name' => $clinics[$ci]['name'],
+                    ];
+                } elseif (empty($clinics[$ti]['doctors'][$found]['rule'])) {
+                    $clinics[$ti]['doctors'][$found]['migrated_from'] = $clinicCode;
+                    $clinics[$ti]['doctors'][$found]['migrated_from_name'] = $clinics[$ci]['name'];
+                }
+            }
+        }
+
+        return $clinics;
+    }
+
+    /** @param string|null $rule 'frozen' | 'migrated' | null (null = back to normal) */
+    public function setRule(string $clinic, string $doctor, ?string $rule, ?string $target, array $names, ?string $actor): void
+    {
+        $key = ['clinic_code' => $clinic, 'doctor_code' => $doctor];
+        if (in_array($rule, ['frozen', 'migrated'], true)) {
+            DB::table('tv_doctor_rules')->updateOrInsert($key, [
+                'rule' => $rule,
+                'target_clinic_code' => $rule === 'migrated' ? $target : null,
+                'doctor_name' => $names['doctor'] ?? null,
+                'clinic_name' => $names['clinic'] ?? null,
+                'target_clinic_name' => $rule === 'migrated' ? ($names['target'] ?? null) : null,
+                'updated_by' => $actor, 'updated_at' => now(), 'created_at' => now(),
+            ]);
+        } else {
+            DB::table('tv_doctor_rules')->where($key)->delete();
+        }
+        // a rule is not tied to a day: drop every cached day
+        $today = Carbon::now(config('tv.timezone'));
+        for ($d = -2; $d <= 15; $d++) {
+            $this->forget($today->copy()->addDays($d)->format('Y-m-d'));
+        }
     }
 
     /** @param string|null $state 'on' | 'off' | null (null = back to the default) */

@@ -77,6 +77,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::prefix('tv/control')->controller(TvControlController::class)->group(function () {
         Route::get('/overview', 'overview');
         Route::put('/doctor', 'doctor');
+        Route::put('/rule', 'rule');
         Route::put('/move', 'move');
     });
 

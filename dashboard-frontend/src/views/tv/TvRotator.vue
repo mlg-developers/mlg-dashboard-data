@@ -208,7 +208,7 @@ onBeforeUnmount(() => {
       class="tv-pulse"
       :class="{ 'is-loop': slides.length < 2 }"
       :style="{
-        '--pulse-time': `${interval.value}s`,
+        '--pulse-time': `${interval}s`,
         '--pulse-state': paused ? 'paused' : 'running',
       }"
       aria-hidden="true"

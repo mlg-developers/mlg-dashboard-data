@@ -51,6 +51,10 @@ return [
     //   'active'   = only doctors that have patients in the clinic today, plus the ones the accountant switched on.
     'doctor_visibility' => in_array(env('TV_DOCTOR_VISIBILITY', 'assigned'), ['assigned', 'active'], true) ? env('TV_DOCTOR_VISIBILITY', 'assigned') : 'assigned',
 
+    // Only specialists / super specialists (API 1 doctQuali) are shown, except in clinics whose name contains
+    // one of these words (comma separated), which keep every doctor.
+    'all_qualification_clinics' => array_values(array_filter(array_map('trim', explode(',', (string) env('TV_ALL_QUALIFICATION_CLINICS', 'PHYSIOTHERAPY'))))),
+
     // Roles allowed to use the accountant control page (users.role). Comma separated.
     'control_roles' => array_values(array_filter(array_map('trim', explode(',', (string) env('TV_CONTROL_ROLES', 'Accountant,ED,DED,DICT'))))),
 

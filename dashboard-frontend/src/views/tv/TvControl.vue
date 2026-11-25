@@ -28,6 +28,8 @@ const department = ref('')
 const floor = ref('')
 const open = ref(new Set())
 const moving = ref(null) // { clinic, from, to, count } while the move form is open
+const migrating = ref(null) // { clinic, doctor, target } while the migrate form is open
+const view = ref(null) // null | 'off' | 'frozen' | 'migrated': the lists of switched-off doctors
 
 // The control page always asks for its own login. The token lives in sessionStorage only, so it is
 // gone when the tab/browser is closed and it is never shared with the dashboard session.
@@ -208,12 +210,71 @@ const save = async (path, body) => {
 
 // A doctor is on the TV when he has patients in this clinic today, or when he was switched on here.
 // The switch means "in the clinic today": which stored state gives the wanted result depends on that default.
-const inClinic = (doctor) => doctor.visible && !doctor.off
+const inClinic = (doctor) => !doctor.rule && doctor.visible && !doctor.off
 const toggleDoctor = (clinic, doctor) => {
   const wantIn = !inClinic(doctor)
   // state 'on' / 'off' is only stored when it differs from what the doctor is by default
   const state = wantIn ? (doctor.default_visible ? null : 'on') : doctor.default_visible ? 'off' : null
   return save('/tv/control/doctor', { date: date.value, clinic_code: clinic.code, doctor_code: doctor.code, state })
+}
+
+// Permanent rules (not tied to a day). They survive reloads until the accountant turns the switch back.
+const quietReload = async () => {
+  try {
+    payload.value = await api('GET', `/tv/control/overview?date=${encodeURIComponent(date.value)}`)
+  } catch (failure) {
+    error.value = failure.message
+  }
+}
+
+const saveRule = async (clinicCode, doctorCode, rule, target = null) => {
+  busy.value = true
+  error.value = ''
+  try {
+    await api('PUT', '/tv/control/rule', {
+      date: date.value,
+      clinic_code: clinicCode,
+      doctor_code: doctorCode,
+      rule,
+      ...(target ? { target_clinic_code: target } : {}),
+    })
+    await quietReload()
+    flash(t('ctlSaved'))
+    return true
+  } catch (failure) {
+    error.value = failure.message
+    return false
+  } finally {
+    busy.value = false
+  }
+}
+
+const isFrozen = (d) => d.rule === 'frozen'
+const isMigrated = (d) => d.rule === 'migrated'
+const toggleFreeze = (clinic, d) => saveRule(clinic.code, d.code, isFrozen(d) ? null : 'frozen')
+
+const toggleMigrate = (clinic, d) => {
+  if (isMigrated(d)) {
+    migrating.value = null
+    return saveRule(clinic.code, d.code, null)
+  }
+  if (migrating.value && migrating.value.clinic === clinic.code && migrating.value.doctor === d.code) {
+    migrating.value = null // closes the form
+    return
+  }
+  migrating.value = { clinic: clinic.code, doctor: d.code, target: '' }
+}
+
+const migrateTargets = (clinic) =>
+  clinics.value
+    .filter((c) => c.code !== clinic.code)
+    .map((c) => ({ code: c.code, label: `${clinicName(c.name)}${floorLabel(c) ? ` · ${floorLabel(c)}` : ''}` }))
+    .sort((a, b) => a.label.localeCompare(b.label))
+
+const applyMigrate = async (clinic) => {
+  const m = migrating.value
+  if (!m || !m.target) return
+  if (await saveRule(clinic.code, m.doctor, 'migrated', m.target)) migrating.value = null
 }
 
 const startMove = (clinic, doctor) => {
@@ -238,7 +299,7 @@ const maxMove = (clinic) => {
 }
 
 // every doctor assigned to the clinic can receive patients, except one switched off for the day
-const targets = (clinic) => clinic.doctors.filter((d) => moving.value && d.code !== moving.value.from && !d.off)
+const targets = (clinic) => clinic.doctors.filter((d) => moving.value && d.code !== moving.value.from && !d.off && !d.rule)
 const targetsShown = (clinic) => targets(clinic).filter((d) => d.visible)
 const targetsOther = (clinic) => targets(clinic).filter((d) => !d.visible)
 
@@ -256,6 +317,20 @@ const summary = computed(() => ({
   off: visible.value.reduce((n, row) => n + row.clinic.doctors.filter((d) => d.off).length, 0),
   moves: visible.value.reduce((n, row) => n + (row.clinic.moves ? row.clinic.moves.length : 0), 0),
 }))
+
+// the "view" lists: doctors turned off for the viewed day, and the permanent freeze / migration rules
+const rules = computed(() => (payload.value && payload.value.rules) || [])
+const offList = computed(() =>
+  clinics.value.flatMap((c) => c.doctors.filter((d) => d.off).map((d) => ({ clinic: c, doctor: d }))),
+)
+const frozenList = computed(() => rules.value.filter((r) => r.rule === 'frozen'))
+const migratedList = computed(() => rules.value.filter((r) => r.rule === 'migrated'))
+const counts = computed(() => ({ off: offList.value.length, frozen: frozenList.value.length, migrated: migratedList.value.length }))
+const setView = (name) => {
+  view.value = view.value === name ? null : name
+}
+const restoreRule = (r) => saveRule(r.clinic_code, r.doctor_code, null)
+const restoreOff = (entry) => toggleDoctor(entry.clinic, entry.doctor)
 
 const isFuture = computed(() => date.value > hospitalToday())
 const waitingLabel = (n) => (n === null || n === undefined ? '—' : n)
@@ -315,6 +390,18 @@ const waitingLabel = (n) => (n === null || n === undefined ? '—' : n)
       </label>
       <button type="button" class="ctl-reload" :disabled="loading" @click="load">↻ {{ t('ctlReload') }}</button>
     </section>
+    <nav v-if="token && payload" class="ctl-views" :aria-label="t('ctlViews')">
+      <span class="ctl-views__label">{{ t('ctlViews') }}</span>
+      <button type="button" class="vw is-off" :class="{ 'is-active': view === 'off' }" @click="setView('off')">
+        {{ t('ctlViewOff') }} <b>{{ counts.off }}</b>
+      </button>
+      <button type="button" class="vw is-frozen" :class="{ 'is-active': view === 'frozen' }" @click="setView('frozen')">
+        {{ t('ctlViewFrozen') }} <b>{{ counts.frozen }}</b>
+      </button>
+      <button type="button" class="vw is-migrated" :class="{ 'is-active': view === 'migrated' }" @click="setView('migrated')">
+        {{ t('ctlViewMigrated') }} <b>{{ counts.migrated }}</b>
+      </button>
+    </nav>
     </div>
 
     <form v-if="!token" class="ctl-login" @submit.prevent="signIn">
@@ -359,9 +446,43 @@ const waitingLabel = (n) => (n === null || n === undefined ? '—' : n)
         </div>
       </section>
 
-      <p v-if="!visible.length" class="ctl-muted">{{ t('ctlNoResults') }}</p>
+      <section v-if="view" class="ctl-list">
+        <header>
+          <h2>{{ view === 'off' ? t('ctlViewOff') : view === 'frozen' ? t('ctlViewFrozen') : t('ctlViewMigrated') }}</h2>
+          <p class="ctl-muted">{{ view === 'off' ? t('ctlListOffHint') : view === 'frozen' ? t('ctlListFrozenHint') : t('ctlListMigratedHint') }}</p>
+          <button type="button" @click="view = null">← {{ t('ctlBackToClinics') }}</button>
+        </header>
+        <p v-if="!counts[view]" class="ctl-muted">{{ t('ctlListEmpty') }}</p>
 
-      <div class="ctl-grid">
+        <ul v-if="view === 'off'">
+          <li v-for="e in offList" :key="e.clinic.code + e.doctor.code">
+            <span class="who"><b>{{ e.doctor.name }}</b> <small>{{ e.doctor.qualification }}</small></span>
+            <span class="where">{{ clinicName(e.clinic.name) }}</span>
+            <span class="note">{{ date }}</span>
+            <button type="button" class="ctl-switch" :disabled="busy" :title="t('ctlRestore')" @click="restoreOff(e)"><span></span></button>
+          </li>
+        </ul>
+        <ul v-else-if="view === 'frozen'">
+          <li v-for="r in frozenList" :key="r.clinic_code + r.doctor_code">
+            <span class="who"><b>{{ r.doctor_name || r.doctor_code }}</b></span>
+            <span class="where">{{ clinicName(r.clinic_name || r.clinic_code) }}</span>
+            <span class="note">{{ r.updated_by }}</span>
+            <button type="button" class="ctl-switch is-frozen" :disabled="busy" :title="t('ctlRestore')" @click="restoreRule(r)"><span></span></button>
+          </li>
+        </ul>
+        <ul v-else>
+          <li v-for="r in migratedList" :key="r.clinic_code + r.doctor_code">
+            <span class="who"><b>{{ r.doctor_name || r.doctor_code }}</b></span>
+            <span class="where">{{ clinicName(r.clinic_name || r.clinic_code) }} → <b>{{ clinicName(r.target_clinic_name || r.target_clinic_code) }}</b></span>
+            <span class="note">{{ r.updated_by }}</span>
+            <button type="button" class="ctl-switch is-blue is-on" :disabled="busy" :title="t('ctlRestore')" @click="restoreRule(r)"><span></span></button>
+          </li>
+        </ul>
+      </section>
+
+      <p v-if="!view && !visible.length" class="ctl-muted">{{ t('ctlNoResults') }}</p>
+
+      <div v-if="!view" class="ctl-grid">
       <article v-for="row in visible" :key="row.clinic.code" class="ctl-clinic" :class="{ 'is-open': isOpen(row.clinic.code) }">
         <button type="button" class="ctl-clinic__head" @click="toggleOpen(row.clinic.code)">
           <span class="ctl-clinic__title">
@@ -396,32 +517,35 @@ const waitingLabel = (n) => (n === null || n === undefined ? '—' : n)
                 <th class="num is-billed">{{ t('colBooked') }}</th>
                 <th class="num is-waiting">{{ t('colWaiting') }}</th>
                 <th class="num is-seen">{{ t('colSeen') }}</th>
-                <th>{{ t('ctlOnDuty') }}</th>
+                <th class="tg">{{ t('ctlColToday') }}</th>
+                <th class="tg">{{ t('ctlColActive') }}</th>
+                <th class="tg">{{ t('ctlColMigrate') }}</th>
                 <th></th>
               </tr>
             </thead>
             <tbody>
               <template v-for="d in row.doctors" :key="d.code">
-                <tr :class="{ 'is-off': d.off || !d.visible }">
-                  <td>
-                    <div class="ctl-doctor">{{ d.name }}</div>
-                    <div class="ctl-sub">
-                      {{ d.qualification }}
-                      <span v-if="!d.visible" class="ctl-tag hid">{{ t('ctlHidden') }}</span>
-                      <span v-if="d.moved_in" class="ctl-tag in">+{{ d.moved_in }} {{ t('ctlMovedIn') }}</span>
-                      <span v-if="d.moved_out" class="ctl-tag out">−{{ d.moved_out }} {{ t('ctlMovedOut') }}</span>
-                    </div>
-                    <div v-if="d.off && d.waiting" class="ctl-warn">{{ t('ctlOffWarn', { n: d.waiting }) }}</div>
+                <tr :class="{ 'is-off': d.off || !d.visible, 'is-frozen': isFrozen(d), 'is-migrated': isMigrated(d) }">
+                  <td class="who">
+                    <span class="ctl-doctor">{{ d.name }}</span>
+                    <small class="ctl-sub">{{ d.qualification }}</small>
+                    <span v-if="isFrozen(d)" class="ctl-tag frz">{{ t('ctlTagFrozen') }}</span>
+                    <span v-else-if="isMigrated(d)" class="ctl-tag mig">→ {{ clinicName(d.migrated_to_name || d.migrated_to) }}</span>
+                    <span v-else-if="d.migrated_from" class="ctl-tag in">← {{ clinicName(d.migrated_from_name || d.migrated_from) }}</span>
+                    <span v-else-if="!d.visible" class="ctl-tag hid">{{ t('ctlHidden') }}</span>
+                    <span v-if="d.moved_in" class="ctl-tag in">+{{ d.moved_in }}</span>
+                    <span v-if="d.moved_out" class="ctl-tag out">−{{ d.moved_out }}</span>
+                    <span v-if="d.off && d.waiting" class="ctl-warn" :title="t('ctlOffWarn', { n: d.waiting })">⚠ {{ d.waiting }}</span>
                   </td>
                   <td class="num">{{ waitingLabel(d.booked) }}</td>
                   <td class="num strong">{{ waitingLabel(d.waiting) }}</td>
                   <td class="num">{{ waitingLabel(d.seen) }}</td>
-                  <td>
+                  <td class="tg">
                     <button
                       type="button"
                       class="ctl-switch"
                       :class="{ 'is-on': inClinic(d) }"
-                      :disabled="busy"
+                      :disabled="busy || Boolean(d.rule)"
                       :aria-pressed="inClinic(d)"
                       :title="inClinic(d) ? t('ctlOnDuty') : t('ctlOffDuty')"
                       @click="toggleDoctor(row.clinic, d)"
@@ -429,20 +553,61 @@ const waitingLabel = (n) => (n === null || n === undefined ? '—' : n)
                       <span></span>
                     </button>
                   </td>
-                  <td>
+                  <td class="tg">
                     <button
-                      v-if="d.waiting > 0"
+                      type="button"
+                      class="ctl-switch"
+                      :class="{ 'is-on': !isFrozen(d), 'is-frozen': isFrozen(d) }"
+                      :disabled="busy || isMigrated(d)"
+                      :aria-pressed="!isFrozen(d)"
+                      :title="isFrozen(d) ? t('ctlUnfreezeTip') : t('ctlFreezeTip')"
+                      @click="toggleFreeze(row.clinic, d)"
+                    >
+                      <span></span>
+                    </button>
+                  </td>
+                  <td class="tg">
+                    <button
+                      type="button"
+                      class="ctl-switch is-blue"
+                      :class="{ 'is-on': isMigrated(d) || (migrating && migrating.clinic === row.clinic.code && migrating.doctor === d.code) }"
+                      :disabled="busy || isFrozen(d)"
+                      :aria-pressed="isMigrated(d)"
+                      :title="isMigrated(d) ? t('ctlUnmigrateTip') : t('ctlMigrateTip')"
+                      @click="toggleMigrate(row.clinic, d)"
+                    >
+                      <span></span>
+                    </button>
+                  </td>
+                  <td class="act">
+                    <button
+                      v-if="d.waiting > 0 && !d.rule"
                       type="button"
                       class="ctl-link"
                       :disabled="busy"
                       @click="moving && moving.from === d.code ? (moving = null) : startMove(row.clinic, d)"
                     >
-                      {{ t('ctlMove') }}
+                      {{ t('ctlMoveShort') }}
                     </button>
                   </td>
                 </tr>
+                <tr v-if="migrating && migrating.clinic === row.clinic.code && migrating.doctor === d.code" class="ctl-moverow">
+                  <td colspan="8">
+                    <div class="ctl-moveform">
+                      <label>
+                        <span>{{ t('ctlMigrateTo') }}</span>
+                        <select v-model="migrating.target">
+                          <option value="" disabled>—</option>
+                          <option v-for="o in migrateTargets(row.clinic)" :key="o.code" :value="o.code">{{ o.label }}</option>
+                        </select>
+                      </label>
+                      <button type="button" class="primary" :disabled="busy || !migrating.target" @click="applyMigrate(row.clinic)">{{ t('ctlConfirm') }}</button>
+                      <button type="button" @click="migrating = null">{{ t('ctlCancel') }}</button>
+                    </div>
+                  </td>
+                </tr>
                 <tr v-if="moving && moving.clinic === row.clinic.code && moving.from === d.code" class="ctl-moverow">
-                  <td colspan="6">
+                  <td colspan="8">
                     <div class="ctl-moveform">
                       <label>
                         <span>{{ t('ctlMoveTo') }}</span>
@@ -1057,6 +1222,208 @@ select:focus {
 }
 .ctl-doctor {
   font-weight: 700;
+}
+
+/* ---------- compact one-row doctors, toggles and the view lists ---------- */
+.ctl-table {
+  font-size: 0.84rem;
+}
+.ctl-table th,
+.ctl-table td {
+  padding: 0.28rem 0.4rem;
+  white-space: nowrap;
+}
+.ctl-table th {
+  font-size: 0.68rem;
+}
+.ctl-table td.who {
+  white-space: normal;
+}
+.ctl-table .tg {
+  text-align: center;
+  width: 5.2rem;
+}
+.ctl-table td.who .ctl-sub {
+  margin-left: 0.4rem;
+  font-size: 0.72rem;
+}
+.ctl-table .ctl-tag {
+  margin-left: 0.3rem;
+  font-size: 0.7rem;
+}
+.ctl-tag.frz {
+  background: #fde8e8;
+  color: #9b1c1c;
+}
+.ctl-tag.mig {
+  background: #dfe9ff;
+  color: #1d4ed8;
+}
+.ctl-table .ctl-warn {
+  display: inline;
+  margin-left: 0.3rem;
+}
+.ctl-table tr.is-frozen .ctl-doctor,
+.ctl-table tr.is-migrated .ctl-doctor {
+  color: var(--muted);
+  text-decoration: line-through;
+}
+.ctl-table td.act {
+  text-align: right;
+}
+.ctl-table .ctl-switch {
+  width: 36px;
+  height: 20px;
+}
+.ctl-table .ctl-switch span {
+  top: 2px;
+  left: 2px;
+  width: 16px;
+  height: 16px;
+}
+.ctl-table .ctl-switch.is-on span {
+  transform: translateX(16px);
+}
+.ctl-switch.is-frozen {
+  background: #e42424;
+}
+.ctl-switch.is-frozen span {
+  transform: none;
+}
+.ctl-switch.is-blue.is-on {
+  background: #2563eb;
+}
+.ctl-switch:focus-visible {
+  outline: 2px solid var(--navy);
+  outline-offset: 2px;
+}
+.ctl-switch:disabled {
+  opacity: 0.4;
+}
+
+.ctl-views {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  padding-top: 0.55rem;
+}
+.ctl-views__label {
+  margin-right: 0.2rem;
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.vw {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.3rem 0.85rem;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: #fff;
+  color: var(--ink);
+  font-size: 0.85rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+.vw b {
+  min-width: 1.4rem;
+  padding: 0 0.4rem;
+  border-radius: 999px;
+  background: #eceef7;
+  text-align: center;
+  font-size: 0.78rem;
+}
+.vw.is-off b {
+  background: #fff1cc;
+  color: #8a5a00;
+}
+.vw.is-frozen b {
+  background: #fde8e8;
+  color: #9b1c1c;
+}
+.vw.is-migrated b {
+  background: #dfe9ff;
+  color: #1d4ed8;
+}
+.vw.is-active {
+  border-color: var(--navy);
+  background: var(--navy);
+  color: #fff;
+}
+
+.ctl-list {
+  margin-top: 1.1rem;
+  padding: 0.9rem 1.1rem;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: 0 2px 8px rgba(36, 36, 132, 0.07);
+}
+.ctl-list header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.4rem 1rem;
+}
+.ctl-list h2 {
+  margin: 0;
+  font-size: 1.05rem;
+  color: var(--navy);
+}
+.ctl-list header p {
+  flex: 1;
+  margin: 0;
+  font-size: 0.82rem;
+}
+.ctl-list header button {
+  padding: 0.3rem 0.8rem;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  font-weight: 600;
+  cursor: pointer;
+}
+.ctl-list ul {
+  margin: 0.6rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+.ctl-list li {
+  display: grid;
+  grid-template-columns: minmax(0, 1.3fr) minmax(0, 1.6fr) minmax(0, 0.8fr) auto;
+  align-items: center;
+  gap: 0.8rem;
+  padding: 0.35rem 0.3rem;
+  border-top: 1px solid var(--line);
+  font-size: 0.86rem;
+}
+.ctl-list li:nth-child(odd) {
+  background: #fafbff;
+}
+.ctl-list li small,
+.ctl-list li .note {
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+.ctl-list li .who,
+.ctl-list li .where {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+@media (max-width: 720px) {
+  .ctl-list li {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+  .ctl-list li .where,
+  .ctl-list li .note {
+    grid-column: 1 / -1;
+    white-space: normal;
+  }
 }
 
 @media (max-width: 720px) {
