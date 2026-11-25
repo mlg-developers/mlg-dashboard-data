@@ -164,7 +164,6 @@ const go = (step) => {
   startTimer()
 }
 
-const togglePause = () => toggleRefresh()
 watch(paused, () => startTimer())
 
 const onKey = (event) => {
@@ -172,10 +171,6 @@ const onKey = (event) => {
   else if (event.key === 'ArrowLeft') go(-1)
   else if (event.key === 'r' || event.key === 'R') refresh()
   else if (event.key === 'Escape') panelOpen.value = false
-  else if (event.key === ' ') {
-    event.preventDefault()
-    togglePause()
-  }
 }
 
 const clock = computed(() =>

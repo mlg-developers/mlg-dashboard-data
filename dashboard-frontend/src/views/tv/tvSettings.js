@@ -1,7 +1,7 @@
 import { effectScope, reactive, watch } from 'vue'
 
 // Display settings of one TV (how often the numbers refresh, how long each screen stays up, whether
-// auto-refresh is running, which is the only thing not remembered). Kept in this browser, so they survive a TV restart like the language does.
+// auto-refresh is running). Kept in this browser, so they survive a TV restart like the language does.
 // Priority: what someone chose with the settings panel > ?refresh= / ?interval= in the URL > defaults.
 
 const STORAGE_KEY = 'tv:settings'
@@ -40,9 +40,8 @@ export const initSettings = (query = {}) => {
   const stored = read() || {}
   settings.refreshSeconds = clamp(stored.refreshSeconds ?? query.refresh, REFRESH_STEPS, DEFAULTS.refreshSeconds)
   settings.slideSeconds = clamp(stored.slideSeconds ?? query.interval, SLIDE_STEPS, DEFAULTS.slideSeconds)
-  // auto refresh always starts ON after a page load: a pause is never remembered, so a TV cannot stay
-  // frozen after someone paused it once (or pressed the space bar by accident)
-  settings.refreshEnabled = true
+  // on/off is remembered like every other choice: it only changes when someone uses the switch
+  settings.refreshEnabled = stored.refreshEnabled !== false
   const floor = String(stored.floor ?? query.floor ?? '')
   settings.floor = /^[A-Za-z0-9_-]{1,10}$/.test(floor) ? floor : ''
 
@@ -51,7 +50,7 @@ export const initSettings = (query = {}) => {
   // so it keeps saving even after the TV page was left and opened again.
   if (!started) {
     started = true
-    effectScope(true).run(() => watch(settings, () => write((({ refreshEnabled, ...saved }) => saved)(settings)), { deep: true, flush: 'sync' }))
+    effectScope(true).run(() => watch(settings, () => write({ ...settings }), { deep: true, flush: 'sync' }))
   }
 }
 
